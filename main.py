@@ -1,7 +1,7 @@
 """
 模块名称：病历分析系统主入口
 功能描述：作为系统的主调度器，负责初始化配置模块、构建业务流管线，
-         管理各处理层之间的参数流转并负责最外层异常捕获。
+         管理各处理层之间的参数流转并负责最外层异常捕获与抛出。
 """
 
 import os
@@ -27,12 +27,18 @@ def generate_patient_id() -> str:
     return uuid.uuid4().hex[:8].upper()
 
 
-def run_medical_pipeline(image_path: str):
+def run_medical_pipeline(image_path: str) -> str:
     """
     执行完整的病历分析业务流水线。
 
-    Args:
+    参数:
         image_path (str): 待处理的病历图片物理路径。
+
+    返回:
+        str: 持久化归档生成的快照目录绝对或相对路径。
+
+    异常:
+        抛出 MedicalSystemError 或 Exception 以便上层调用方进行捕获。
     """
     logger.info("=" * 50)
     logger.info("系统启动：医疗病历智能分析模块")
@@ -124,15 +130,24 @@ def run_medical_pipeline(image_path: str):
         )
         logger.info(f"分析流水线执行完毕。系统存档路径: {save_dir}")
 
+        # 关键修改：返回生成的快照目录路径供 Web 层使用
+        return save_dir
+
     except MedicalSystemError as me:
         logger.error(f"业务逻辑阻断异常: {str(me)}")
+        raise me  # 关键修改：向上抛出异常供调用者捕获
     except Exception as e:
         logger.error("系统级崩溃拦截，堆栈跟踪信息如下：")
         logger.error(traceback.format_exc())
+        raise e  # 关键修改：向上抛出异常供调用者捕获
     finally:
         logger.info("=" * 50)
 
 
 if __name__ == "__main__":
-    target_image = "R.jpg"
-    run_medical_pipeline(target_image)
+    # 本地命令行测试逻辑，只有直接运行此文件时才会执行
+    target_image = "test.jpg"
+    if os.path.exists(target_image):
+        run_medical_pipeline(target_image)
+    else:
+        logger.error(f"未找到测试图像文件: {target_image}")

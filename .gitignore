@@ -44,4 +44,4 @@ records/
 *.log
 
 # 忽略根目录下的零散测试图片
-R.jpg
+test.jpg

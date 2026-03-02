@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <title>病历智能结构化工作站</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        /* 系统全局样式重置与色彩规范 */
+        body { background-color: #f4f6f9; color: #333; }
+        .nav-tabs .nav-link { color: #495057; font-weight: 500; }
+        .nav-tabs .nav-link.active { color: #0d6efd; font-weight: 600; border-bottom: 2px solid #0d6efd; }
+        
+        /* 医疗实体高亮样式池 */
+        .entity-box {
+            display: inline-block; line-height: 1.5; margin: 2px; padding: 1px 0;
+            border-radius: 4px; font-size: 1rem; cursor: pointer;
+        }
+        .entity-text { padding: 0 4px; font-weight: 600; }
+        .entity-label {
+            font-size: 0.7rem; padding: 0 4px; border-left: 1px solid rgba(0,0,0,0.15);
+        }
+        
+        .type-疾病 { background-color: #ffe4e6; color: #be123c; border: 1px solid #fda4af; }
+        .type-症状 { background-color: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+        .type-药物 { background-color: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+        .type-身体部位 { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+        .type-手术_检查 { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+        .type-科室 { background-color: #ccfbf1; color: #0f766e; border: 1px solid #5eead4; }
+        
+        .text-panel { line-height: 2; font-size: 1.05rem; }
+    </style>
+</head>
+<body class="container-fluid py-4 px-5">
+
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h3 class="text-primary fw-bold m-0"><i class="bi bi-hospital"></i> 门诊病历智能结构化工作站</h3>
+        <span class="text-muted">当前操作层级：系统功能验证</span>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-3 col-lg-4">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white pt-3 pb-2 border-bottom-0">
+                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-cloud-arrow-up"></i> 影像采集与识别</h6>
+                </div>
+                <div class="card-body">
+                    <form action="/analyze" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input class="form-control" type="file" name="image" accept="image/*" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">下发计算任务</button>
+                    </form>
+                </div>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger shadow-sm border-0 small">
+                <strong>执行阻断：</strong><br>{{ error }}
+            </div>
+            {% endif %}
+
+            {% if record %}
+            <div class="card shadow-sm border-0 bg-light">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">系统归档元数据</h6>
+                    <hr class="mt-0 mb-2">
+                    <p class="mb-1 small"><strong>就诊编号：</strong> <span id="meta-visit-id">{{ record.get('就诊编号', '缺失') }}</span></p>
+                    <p class="mb-0 small"><strong>患者 ID：</strong> <span id="meta-patient-id">{{ record.get('患者ID', '缺失') }}</span></p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-xl-9 col-lg-8">
+            {% if record %}
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white pt-3 pb-0">
+                    <ul class="nav nav-tabs border-bottom-0" id="workstationTabs">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-vision">
+                                <i class="bi bi-search"></i> 原始影像与实体溯源
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-emr">
+                                <i class="bi bi-file-earmark-medical"></i> 结构化病历核对
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-diagnosis">
+                                <i class="bi bi-clipboard2-pulse"></i> 诊断结论确认与入库
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="card-body tab-content bg-white" style="min-height: 60vh;">
+                    
+                    <div class="tab-pane fade show active h-100" id="tab-vision">
+                        <div class="row h-100">
+                            <div class="col-md-5 border-end">
+                                <h6 class="text-secondary fw-bold mb-3">扫描件视图</h6>
+                                <div class="bg-light p-2 rounded text-center h-100 d-flex align-items-center justify-content-center">
+                                    {% if image_filename %}
+                                    <img src="/uploads_temp/{{ image_filename }}" alt="原始病历影像" class="img-fluid rounded" style="max-height: 55vh; object-fit: contain;">
+                                    {% else %}
+                                    <span class="text-muted">影像缓存已释放</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <h6 class="text-secondary fw-bold mb-3">非结构化文本语义映射</h6>
+                                <div class="mb-3">
+                                    <span class="badge type-疾病">疾病</span>
+                                    <span class="badge type-症状">症状</span>
+                                    <span class="badge type-药物">药物</span>
+                                    <span class="badge type-身体部位">身体部位</span>
+                                    <span class="badge type-手术_检查">手术/检查</span>
+                                </div>
+                                <div id="highlight-render-target" class="text-panel p-3 border rounded bg-light" style="max-height: 50vh; overflow-y: auto;">
+                                    </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-emr">
+                        <h6 class="text-secondary fw-bold mb-4">电子病历标准化录入表单 (支持人工干预)</h6>
+                        <form id="emr-form">
+                            <div class="row g-3">
+                                {% for key, value in record.get('结构化病历', {}).items() %}
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold text-dark small mb-1">{{ key }}</label>
+                                    <textarea class="form-control" name="{{ key }}" rows="{% if value and value|length > 40 %}3{% else %}1{% endif %}" style="font-size: 0.95rem;">{{ value }}</textarea>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-diagnosis">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-secondary fw-bold m-0">临床逻辑判定集</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="injectNewDiagnosisRow()">
+                                <i class="bi bi-plus-lg"></i> 补充推断规则
+                            </button>
+                        </div>
+                        
+                        <div class="table-responsive border rounded mb-4" style="max-height: 40vh; overflow-y: auto;">
+                            <table class="table table-hover align-middle m-0" id="diagnosis-table">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th width="40%">临床推断结论</th>
+                                        <th width="25%">逻辑关联类型</th>
+                                        <th width="25%">溯源段落锚点</th>
+                                        <th width="10%" class="text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in record.get('智能诊断核心问题', []) %}
+                                    <tr>
+                                        <td><input type="text" class="form-control form-control-sm" value="{{ item.get('临床结论') }}"></td>
+                                        <td><input type="text" class="form-control form-control-sm" value="{{ item.get('逻辑类型') }}"></td>
+                                        <td><input type="text" class="form-control form-control-sm" value="{{ item.get('来源段落') }}"></td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeDiagnosisRow(this)"><i class="bi bi-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <hr class="my-4 text-muted opacity-25">
+                        
+                        <div class="d-flex justify-content-end align-items-center gap-3">
+                            <span class="text-muted small" id="save-status-indicator">当前状态：未归档</span>
+                            <button type="button" class="btn btn-primary" onclick="executeArchiveProtocol()">
+                                <i class="bi bi-hdd-fill"></i> 提交变更并生成终端报告
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            {% else %}
+            <div class="card shadow-sm border-0 h-100 d-flex align-items-center justify-content-center bg-light">
+                <div class="text-center text-muted">
+                    <i class="bi bi-display text-secondary opacity-25" style="font-size: 4rem;"></i>
+                    <p class="mt-3 fw-bold">工作站待机中</p>
+                    <p class="small">请在左侧面板初始化分析流</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+{% if record and not record.error %}
+    /* 模块初始化与数据装载 */
+    document.addEventListener("DOMContentLoaded", function() {
+        renderEntityHighlights();
+    });
+
+    /**
+     * 解析底座引擎输出的 JSON 节点，重构并渲染分段带高亮的 HTML 文档流。
+     */
+    function renderEntityHighlights() {
+        const emrData = {{ record.get('结构化病历', {}) | tojson }};
+        const entitiesData = {{ record.get('提取实体', []) | tojson }};
+        const renderTarget = document.getElementById('highlight-render-target');
+        
+        if (!renderTarget) return;
+
+        Object.keys(emrData).forEach(sectionName => {
+            const rawText = emrData[sectionName];
+            if (!rawText || rawText.trim() === '') return;
+
+            // 过滤并排序隶属于当前段落的实体
+            const sectionEntities = entitiesData
+                .filter(ent => ent['所属段落'] === sectionName)
+                .sort((a, b) => a.start - b.start);
+
+            let htmlStream = "";
+            let cursor = 0;
+
+            sectionEntities.forEach(ent => {
+                if (ent.start >= cursor) {
+                    // 挂载普通文本流
+                    htmlStream += escapeHtml(rawText.substring(cursor, ent.start));
+                    
+                    // 挂载实体样式包裹节点
+                    const safeClass = ent.type.replace(/\//g, '_');
+                    htmlStream += `
+                        <span class="entity-box type-${safeClass}" title="置信度/类别: ${ent.type}">
+                            <span class="entity-text">${escapeHtml(ent.text)}</span>
+                            <span class="entity-label">${escapeHtml(ent.type)}</span>
+                        </span>`;
+                    cursor = ent.end;
+                }
+            });
+            // 追加尾部冗余文本
+            htmlStream += escapeHtml(rawText.substring(cursor));
+
+            // 构建段落容器节点
+            const sectionWrapper = document.createElement('div');
+            sectionWrapper.className = "mb-4 pb-2 border-bottom";
+            sectionWrapper.innerHTML = `
+                <div class="fw-bold text-secondary mb-2" style="font-size: 0.9rem;">
+                    <i class="bi bi-bookmark-fill"></i> ${sectionName}
+                </div>
+                <div class="text-dark">${htmlStream}</div>
+            `;
+            renderTarget.appendChild(sectionWrapper);
+        });
+    }
+
+    /**
+     * DOM 操作：向逻辑判定集中注入新的数据录入行
+     */
+    function injectNewDiagnosisRow() {
+        const tbody = document.querySelector('#diagnosis-table tbody');
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm" placeholder="录入结论参数"></td>
+            <td><input type="text" class="form-control form-control-sm" placeholder="定义关联关系"></td>
+            <td><input type="text" class="form-control form-control-sm" placeholder="指定锚点段落"></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeDiagnosisRow(this)"><i class="bi bi-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(newRow);
+    }
+
+    /**
+     * DOM 操作：移除指定的判定记录行
+     */
+    function removeDiagnosisRow(buttonElement) {
+        buttonElement.closest('tr').remove();
+    }
+
+    /**
+     * 核心业务交互：执行序列化表单数据并下发持久化网络请求
+     */
+    function executeArchiveProtocol() {
+        const statusIndicator = document.getElementById('save-status-indicator');
+        statusIndicator.innerText = "数据封装与传输中...";
+        statusIndicator.className = "text-primary small";
+
+        const visitId = document.getElementById('meta-visit-id').innerText;
+        const patientId = document.getElementById('meta-patient-id').innerText;
+
+        // 阶段一：序列化结构化病历映射集
+        const emrPayload = {};
+        const formElements = new FormData(document.getElementById('emr-form'));
+        for (let [key, val] of formElements.entries()) {
+            emrPayload[key] = val;
+        }
+
+        // 阶段二：序列化逻辑推理判定集
+        const diagnosisPayload = [];
+        const tableRows = document.querySelectorAll('#diagnosis-table tbody tr');
+        tableRows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            if (inputs[0].value.trim() !== '') {
+                diagnosisPayload.push({
+                    "临床结论": inputs[0].value.trim(),
+                    "逻辑类型": inputs[1].value.trim(),
+                    "来源段落": inputs[2].value.trim()
+                });
+            }
+        });
+
+        // 阶段三：构建最终网络请求负载数据
+        const finalDataPackage = {
+            "就诊编号": visitId,
+            "患者ID": patientId,
+            "操作行为": "基于 05 文件的人工覆盖更新",
+            "归档状态": "人工复核认证通过",
+            "结构化病历": emrPayload,
+            "智能诊断核心问题": diagnosisPayload,
+            "提取实体": {{ record.get('提取实体', []) | tojson }} // 保留底层实体快照备查
+        };
+
+        // 阶段四：网络下发与异常控制
+        fetch('/save_report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(finalDataPackage)
+        })
+        .then(response => response.json())
+        .then(serverResponse => {
+            if (serverResponse.status === 'success') {
+                statusIndicator.innerText = "归档就绪：文件 06_human_verified 已生成";
+                statusIndicator.className = "text-success fw-bold small";
+                alert('系统级确认：最终核对数据入库成功。');
+            } else {
+                statusIndicator.innerText = "入库阻断";
+                statusIndicator.className = "text-danger small";
+                alert('系统级错误：' + serverResponse.message);
+            }
+        })
+        .catch(error => {
+            statusIndicator.innerText = "网络链路异常";
+            statusIndicator.className = "text-danger small";
+            alert('网络传输层错误: ' + error);
+        });
+    }
+
+    /**
+     * 实用工具：XSS 防范层，规避由于文本特征导致的 DOM 异常解析
+     */
+    function escapeHtml(unsafeText) {
+        return unsafeText
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+{% endif %}
+</script>
+</body>
+</html>
