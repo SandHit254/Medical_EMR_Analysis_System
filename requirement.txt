@@ -2,3 +2,5 @@ torch
 transformers
 rapidocr_onnxruntime
 pydantic
+Flask>=2.3.0
+Werkzeug>=2.3.0
