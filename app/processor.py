@@ -61,18 +61,36 @@ class DataProcessor:
 
     def resolve_nested_entities(self, entities: list) -> list:
         """
-        消除嵌套实体。对位置存在包含关系的实体，保留较短的精确实体，
-        并从较长实体中剔除该重叠部分。
-
-        Args:
-            entities (list): 原始提取的实体列表集合。
-
-        Returns:
-            list: 经过嵌套消解后的结构化实体列表。
+        消除嵌套实体，并引入实体清洗与黑名单过滤机制。
+        解决模型过召回（Over-Recall）与领域偏移（Domain Shift）带来的脏数据。
         """
+        # 1. 前置过滤规则：利用正则过滤掉纯数字、纯标点、无意义的单字
+        filtered_entities = []
+        # 定义一个简单的黑名单（可在后续移入 rules.json 中）
+        blacklist = {"母乳", "间径", "cm", "mm", "无", "否", "未"}
+
+        for e in entities:
+            text = e["text"].strip(" ，。；、：:()（）[]【】")
+            # 规则 a: 长度太短（单字）且不是特殊缩写的，丢弃
+            if len(text) < 2 and not re.match(r"[痛痒晕肿]", text):
+                continue
+            # 规则 b: 纯数字、纯英文或带单位的数值（如 26cm, 100mmHg），大概率是指标值而非疾病，丢弃
+            if re.fullmatch(
+                r"[a-zA-Z0-9\.\+\-\*\/]+(cm|mm|kg|g|ml|l|bp|bpm|mmhg)?", text.lower()
+            ):
+                continue
+            # 规则 c: 命中黑名单的，丢弃
+            if text in blacklist or any(b in text for b in blacklist if len(b) > 2):
+                continue
+
+            # 更新清洗后的干净文本
+            e["text"] = text
+            filtered_entities.append(e)
+
+        # 2. 嵌套消解逻辑（保留原有的长短实体去重逻辑）
         unique_ents = []
         seen = set()
-        for e in entities:
+        for e in filtered_entities:
             identifier = f"{e['type']}-{e['start']}-{e['end']}"
             if identifier not in seen:
                 seen.add(identifier)
@@ -84,9 +102,11 @@ class DataProcessor:
             textA = entA["text"]
             for entB in unique_ents[i + 1 :]:
                 if entB["start"] >= entA["start"] and entB["end"] <= entA["end"]:
+                    # 发现被包含的短实体，将其从长实体字符串中剔除（可选策略）
                     textA = textA.replace(entB["text"], "")
+
             textA = textA.strip('”"’‘，。、 ')
-            if len(textA) >= 1:
+            if len(textA) >= 2 or re.match(r"[痛痒晕肿]", textA):  # 二次校验长度
                 final_ents.append(
                     {
                         "text": textA,
@@ -96,6 +116,16 @@ class DataProcessor:
                         "end": entA["end"],
                     }
                 )
+
+        # 3. 最终去重
+        result, seen_texts = [], set()
+        for e in final_ents:
+            key = f"{e['type']}-{e['text']}"
+            if key not in seen_texts:
+                seen_texts.add(key)
+                result.append(e)
+
+        return result
 
         result, seen_texts = [], set()
         for e in final_ents:
@@ -201,7 +231,7 @@ class DataProcessor:
             return sections
 
         sorted_patterns = sorted(self.section_patterns, key=len, reverse=True)
-        pattern_str = r"(" + "|".join(sorted_patterns) + r")\s*[:：]"
+        pattern_str = r"【?(" + "|".join(sorted_patterns) + r")】?\s*[:：]"
 
         found_headers = []
         for match in re.finditer(pattern_str, text):

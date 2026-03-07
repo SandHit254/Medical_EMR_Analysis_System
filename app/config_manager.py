@@ -1,7 +1,7 @@
 """
 模块名称：配置管理模块
 功能描述：基于单例模式管理全局配置。自动遍历并合并 configs 目录下的所有 JSON 文件，
-         为上层业务提供统一的配置读取接口。
+         为上层业务提供统一的配置读取接口。支持动态热重载机制。
 """
 
 import json
@@ -39,9 +39,17 @@ class ConfigManager:
         获取指定模块的配置信息。
 
         Args:
-            section_name (str): 配置节点的键名（如 'rules', 'ner'）。
+            section_name (str): 配置文件的顶级键名（如 'ner', 'ocr', 'rules'）。
 
         Returns:
-            dict: 包含该节点所有配置的字典。若键名不存在则返回空字典。
+            dict: 包含该模块配置的字典。若不存在则返回空字典。
         """
         return self.settings.get(section_name, {})
+
+    def reload(self):
+        """
+        触发内存热重载机制。
+        清空当前内存配置并重新扫描 configs 目录，使 Web 端（或外部）修改的参数即时生效，
+        从而避免重启底层的 Python 进程，实现真正的 MLOps 持续交付。
+        """
+        self._load_all()

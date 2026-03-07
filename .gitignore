@@ -45,3 +45,5 @@ records/
 
 # 忽略根目录下的零散测试图片
 test.jpg
+test2.jpg
+uploads_temp

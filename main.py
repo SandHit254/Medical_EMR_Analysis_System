@@ -146,7 +146,7 @@ def run_medical_pipeline(image_path: str) -> str:
 
 if __name__ == "__main__":
     # 本地命令行测试逻辑，只有直接运行此文件时才会执行
-    target_image = "test.jpg"
+    target_image = "test2.jpg"
     if os.path.exists(target_image):
         run_medical_pipeline(target_image)
     else:
