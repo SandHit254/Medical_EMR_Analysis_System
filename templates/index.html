@@ -12,26 +12,68 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
     />
-
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
+    <style>
+      @keyframes pulse-red {
+        0% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+        }
+        70% {
+          box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        }
+      }
+      ::selection {
+        background: rgba(13, 110, 253, 0.2);
+      }
+      .bubble-enter {
+        animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+      @keyframes popIn {
+        from {
+          opacity: 0;
+          transform: scale(0.8) translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+    </style>
   </head>
   <body class="container-fluid px-xl-5 pb-5">
-    <div id="loading-overlay">
+    <div
+      id="loading-overlay"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+      "
+    >
       <div class="text-center">
         <div
           class="spinner-border text-primary mb-3"
           style="width: 3rem; height: 3rem"
           role="status"
         ></div>
-        <h5 class="fw-bold text-dark">神经引擎介入中...</h5>
-        <p class="text-muted small">正在执行张量运算与实体抽取，请稍候</p>
+        <h5 class="fw-bold text-dark" id="loading-text">神经引擎介入中...</h5>
+        <p class="text-muted small">正在执行张量运算，请稍候</p>
       </div>
     </div>
 
-    <header class="page-header">
+    <header class="page-header mt-4 mb-4">
       <h2 class="m-0">
         <i class="bi bi-cpu-fill text-primary"></i> 医疗实体智能感知与复核中枢
       </h2>
@@ -42,7 +84,7 @@
 
     <div class="row g-4 justify-content-center">
       <div class="col-xl-3 col-lg-4">
-        <div class="glass-card p-4 mb-4">
+        <div class="glass-card p-4 mb-4 shadow-sm border rounded">
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-cloud-arrow-up"></i> 影像采集节点
           </h6>
@@ -50,7 +92,9 @@
             action="/analyze"
             method="post"
             enctype="multipart/form-data"
-            onsubmit="showLoading()"
+            onsubmit="
+              document.getElementById('loading-overlay').style.display = 'flex'
+            "
           >
             <div class="mb-3">
               <input
@@ -67,17 +111,8 @@
             </button>
           </form>
         </div>
-
-        {% if error %}
-        <div
-          class="alert alert-danger glass-card border-0 small"
-          style="background: rgba(254, 226, 226, 0.8)"
-        >
-          <strong><i class="bi bi-exclamation-triangle"></i> 阻断提示：</strong
-          ><br />{{ error }}
-        </div>
-        {% endif %} {% if record %}
-        <div class="glass-card p-4">
+        {% if record %}
+        <div class="glass-card p-4 shadow-sm border rounded">
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-hdd-network"></i> 归档元数据
           </h6>
@@ -101,7 +136,37 @@
 
       <div class="col-xl-9 col-lg-8">
         {% if record %}
-        <div class="glass-card h-100 d-flex flex-column">
+        <div id="cdss-alert-container">
+          {% if record.get('CDSS预警') %}
+          <div
+            class="alert shadow-sm border-0 mb-3 rounded"
+            style="
+              background-color: #fef2f2;
+              border-left: 6px solid #ef4444 !important;
+              animation: pulse-red 2s infinite;
+            "
+          >
+            <div class="d-flex align-items-center mb-2">
+              <i class="bi bi-shield-fill-x text-danger fs-4 me-2"></i>
+              <h6 class="fw-bold text-danger m-0 tracking-wide">
+                临床决策支持系统 (CDSS) 高危预警拦截
+              </h6>
+            </div>
+            <ul
+              class="mb-0 small text-danger fw-bold"
+              style="list-style-type: square"
+            >
+              {% for warn in record.get('CDSS预警') %}
+              <li class="mb-1">{{ warn }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        </div>
+
+        <div
+          class="glass-card h-100 d-flex flex-column shadow-sm border rounded"
+        >
           <div class="p-3 pb-0">
             <ul class="nav nav-tabs" id="workstationTabs">
               <li class="nav-item">
@@ -141,96 +206,37 @@
                   class="col-md-5 position-sticky"
                   style="top: 1.5rem; z-index: 10"
                 >
-                  <h6
-                    class="text-muted fw-bold mb-3 small text-uppercase tracking-wide"
-                  >
-                    扫描件映射
-                  </h6>
-                  <div
-                    class="bg-white p-2 rounded text-center border"
-                    style="box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.02)"
-                  >
+                  <div class="bg-white p-2 rounded text-center border">
                     {% if image_filename %}
                     <img
                       src="/uploads_temp/{{ image_filename }}"
-                      alt="原始病历影像"
                       class="img-fluid rounded"
                       style="max-height: 75vh; width: 100%; object-fit: contain"
                     />
-                    {% else %}
-                    <div
-                      class="d-flex align-items-center justify-content-center"
-                      style="height: 300px"
-                    >
-                      <span class="text-muted"
-                        ><i class="bi bi-image"></i> 影像缓存已释放</span
-                      >
-                    </div>
                     {% endif %}
                   </div>
                 </div>
-
                 <div class="col-md-7">
                   <div
                     class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2"
                   >
-                    <h6
-                      class="text-muted fw-bold mb-0 small text-uppercase tracking-wide"
-                    >
+                    <h6 class="text-muted fw-bold mb-0 small tracking-wide">
                       语义识别投影
+                      <span class="badge bg-secondary ms-2 fw-normal"
+                        >选词菜单 / 点击改属性 / 增删文本重载</span
+                      >
                     </h6>
-                    <div class="d-flex align-items-center gap-3">
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-primary rounded-pill px-3 shadow-sm"
-                        data-bs-toggle="modal"
-                        data-bs-target="#ocrCorrectionModal"
-                        title="发现识别错误？添加规则反哺底层模型"
-                      >
-                        <i class="bi bi-magic"></i> 提交纠错规则
-                      </button>
-
-                      <div
-                        class="d-flex gap-1 flex-wrap justify-content-end"
-                        style="
-                          transform: scale(0.8);
-                          transform-origin: right center;
-                        "
-                      >
-                        <span class="badge type-疾病 rounded-pill">疾病</span>
-                        <span class="badge type-症状 rounded-pill">症状</span>
-                        <span class="badge type-药物 rounded-pill">药物</span>
-                        <span class="badge type-身体部位 rounded-pill"
-                          >身体部位</span
-                        >
-                        <span class="badge type-手术_检查 rounded-pill"
-                          >手术/检查</span
-                        >
-                      </div>
-                    </div>
                   </div>
                   <div
                     id="highlight-render-target"
                     class="text-panel p-4 border rounded bg-white"
+                    style="user-select: text"
                   ></div>
                 </div>
               </div>
             </div>
 
             <div class="tab-pane fade" id="tab-emr">
-              <div class="d-flex align-items-center mb-4">
-                <div
-                  class="bg-primary bg-opacity-10 p-2 rounded text-primary me-3"
-                >
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </div>
-                <div>
-                  <h6 class="fw-bold m-0 text-dark">标准化电子病历录入</h6>
-                  <span class="text-muted small"
-                    >允许人工干预以修正 OCR/NER 识别偏差</span
-                  >
-                </div>
-              </div>
               <form id="emr-form">
                 <div class="row g-4">
                   {% for key, value in record.get('结构化病历', {}).items() %}
@@ -253,86 +259,7 @@
 
             <div class="tab-pane fade" id="tab-diagnosis">
               <div
-                class="d-flex justify-content-between align-items-center mb-3"
-              >
-                <h6 class="fw-bold m-0 text-dark">临床关联规则集</h6>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-primary rounded-pill px-3"
-                  onclick="injectNewDiagnosisRow()"
-                >
-                  <i class="bi bi-plus-lg"></i> 追加规则
-                </button>
-              </div>
-
-              <div
-                class="border rounded bg-white mb-4"
-                style="max-height: 40vh; overflow-y: auto"
-              >
-                <table
-                  class="table table-hover align-middle m-0"
-                  id="diagnosis-table"
-                >
-                  <thead class="table-light sticky-top">
-                    <tr>
-                      <th width="40%" class="text-muted small fw-bold">
-                        临床推断结论
-                      </th>
-                      <th width="25%" class="text-muted small fw-bold">
-                        关联类型
-                      </th>
-                      <th width="25%" class="text-muted small fw-bold">
-                        溯源锚点
-                      </th>
-                      <th
-                        width="10%"
-                        class="text-center text-muted small fw-bold"
-                      >
-                        操作
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for item in record.get('智能诊断核心问题', []) %}
-                    <tr>
-                      <td>
-                        <input
-                          type="text"
-                          class="form-control form-control-sm border-0 bg-transparent"
-                          value="{{ item.get('临床结论') }}"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          class="form-control form-control-sm border-0 bg-transparent"
-                          value="{{ item.get('逻辑类型') }}"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          class="form-control form-control-sm border-0 bg-transparent"
-                          value="{{ item.get('来源段落') }}"
-                        />
-                      </td>
-                      <td class="text-center">
-                        <button
-                          type="button"
-                          class="btn btn-sm text-danger border-0"
-                          onclick="removeDiagnosisRow(this)"
-                        >
-                          <i class="bi bi-trash"></i>
-                        </button>
-                      </td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-
-              <div
-                class="d-flex justify-content-between align-items-center bg-light p-3 rounded border"
+                class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mt-4"
               >
                 <div class="d-flex align-items-center">
                   <div
@@ -358,79 +285,155 @@
             </div>
           </div>
         </div>
-        {% else %}
-        <div
-          class="glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center"
-        >
-          <div class="position-relative mb-4">
-            <i
-              class="bi bi-cpu text-primary opacity-25"
-              style="font-size: 5rem"
-            ></i>
-          </div>
-          <h4 class="fw-bold text-dark mb-2">引擎挂起中</h4>
-          <p class="text-muted mx-auto">
-            请于左侧控制台上传医疗影像以激活神经感知与逻辑推理模块
-          </p>
-        </div>
         {% endif %}
       </div>
     </div>
 
     <div
-      class="modal fade"
-      id="ocrCorrectionModal"
-      tabindex="-1"
-      aria-hidden="true"
+      id="selection-bubble"
+      class="shadow border glass-card bubble-enter"
+      style="
+        display: none;
+        position: absolute;
+        z-index: 1050;
+        padding: 6px;
+        gap: 8px;
+        border-radius: 8px;
+      "
     >
-      <div class="modal-dialog modal-dialog-centered">
+      <button
+        class="btn btn-sm btn-light text-success border-0 fw-bold"
+        onclick="triggerAddEntity()"
+      >
+        <i class="bi bi-plus-square-dotted"></i> 设为实体
+      </button>
+      <button
+        class="btn btn-sm btn-light text-primary border-0 fw-bold"
+        onclick="triggerOcrCorrection()"
+      >
+        <i class="bi bi-magic"></i> 字典纠错
+      </button>
+    </div>
+
+    <div class="modal fade" id="editOcrTextModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content glass-card border-0 shadow-lg">
           <div class="modal-header border-bottom-0 pb-0">
             <h5 class="modal-title fw-bold text-dark">
-              <i class="bi bi-arrow-repeat text-primary"></i> 提交 OCR 纠错规则
+              <i class="bi bi-input-cursor-text text-primary"></i> 原始文本干预
             </h5>
             <button
               type="button"
               class="btn-close"
               data-bs-dismiss="modal"
-              aria-label="Close"
             ></button>
           </div>
-          <div class="modal-body pt-2">
-            <p class="text-muted small mb-4" style="line-height: 1.6">
-              您提交的纠错词对将触发系统底层
-              <span class="fw-bold text-primary">Data Flywheel (数据飞轮)</span
-              >。系统将自动覆写本地规则库并执行热重载，下一次分析时将自动拦截并纠正同类错误。
-            </p>
-            <div class="mb-3">
-              <label class="form-label fw-bold small text-muted"
-                >识别错词 (Wrong)</label
+          <div class="modal-body pt-3">
+            <input type="hidden" id="edit-ocr-section" />
+            <textarea
+              class="form-control bg-light"
+              id="edit-ocr-content"
+              rows="6"
+              style="line-height: 1.8; font-size: 0.95rem"
+            ></textarea>
+
+            <div class="d-flex gap-2 mt-4">
+              <button
+                type="button"
+                class="btn btn-outline-secondary w-50 py-2"
+                onclick="saveOcrText(false)"
               >
-              <input
-                type="text"
-                class="form-control bg-light"
-                id="ocr-wrong-word"
-                placeholder="例如：领面"
-              />
-            </div>
-            <div class="mb-4">
-              <label class="form-label fw-bold small text-muted"
-                >期望正词 (Right)</label
+                <i class="bi bi-align-middle"></i> 仅保存文本 (自适应已有实体)
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary w-50 py-2 fw-bold"
+                onclick="saveOcrText(true)"
               >
-              <input
-                type="text"
-                class="form-control bg-light"
-                id="ocr-right-word"
-                placeholder="例如：颌面"
-              />
+                <i class="bi bi-lightning-charge-fill"></i> 向下传导 (重载 NER
+                识别本段)
+              </button>
             </div>
-            <button
-              type="button"
-              class="btn btn-primary w-100 py-2"
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="ocrCorrectionModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-body">
+            <input
+              type="text"
+              id="ocr-wrong-word"
+              class="form-control mb-2"
+            /><input
+              type="text"
+              id="ocr-right-word"
+              class="form-control mb-3"
+            /><button
+              class="btn btn-primary w-100"
               onclick="submitOcrCorrection(event)"
             >
-              <i class="bi bi-cloud-arrow-up"></i> 写入系统规则库并热重载
+              反哺底层规则库
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="addEntityModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-body">
+            <input
+              type="text"
+              id="add-ent-text"
+              class="form-control mb-2"
+            /><select id="add-ent-section" class="form-control mb-2"></select
+            ><select id="add-ent-type" class="form-control mb-2">
+              <option>疾病</option>
+              <option>症状</option>
+              <option>药物</option>
+              <option>身体部位</option>
+              <option>手术/检查</option></select
+            ><select id="add-ent-polarity" class="form-control mb-3">
+              <option>阳性</option>
+              <option>阴性</option></select
+            ><button class="btn btn-success w-100" onclick="saveNewEntity()">
+              注入
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="editEntityModal">
+      <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+          <div class="modal-body">
+            <input type="hidden" id="edit-ent-text" /><input
+              type="hidden"
+              id="edit-ent-start"
+            /><input type="hidden" id="edit-ent-section" /><span
+              id="edit-display-text"
+              class="d-block text-center fw-bold mb-3"
+            ></span
+            ><select id="edit-ent-type" class="form-control mb-2">
+              <option>疾病</option>
+              <option>症状</option>
+              <option>药物</option>
+              <option>身体部位</option>
+              <option>手术/检查</option></select
+            ><select id="edit-ent-polarity" class="form-control mb-3">
+              <option>阳性</option>
+              <option>阴性</option>
+            </select>
+            <div class="d-flex gap-2">
+              <button class="btn btn-danger w-50" onclick="deleteEntity()">
+                剔除</button
+              ><button class="btn btn-primary w-50" onclick="updateEntity()">
+                更新
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -444,7 +447,6 @@
       };
       {% endif %}
     </script>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   </body>

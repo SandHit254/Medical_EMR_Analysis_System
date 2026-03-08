@@ -140,7 +140,7 @@ def save_report():
 
 
 # =====================================================================
-# 接口模块 2：参数热重载与数据飞轮 API (新增机制)
+# 接口模块 2：参数热重载与数据飞轮 API
 # =====================================================================
 @app.route("/api/settings/rules", methods=["GET"])
 def get_rules_settings():
@@ -161,11 +161,9 @@ def update_rules_settings():
         new_data = request.json
         rules_path = os.path.join(CONFIGS_DIR, "rules.json")
 
-        # 1. 覆写物理 JSON 文件
         with open(rules_path, "w", encoding="utf-8") as f:
             json.dump(new_data, f, ensure_ascii=False, indent=4)
 
-        # 2. 调度单例对象重载内存，使新阈值/规则在下一次推理中直接生效
         ConfigManager().reload()
 
         return jsonify({"code": 200, "message": "业务规则已覆写，热重载完成。"}), 200
@@ -176,8 +174,7 @@ def update_rules_settings():
 @app.route("/api/ocr/correct", methods=["POST"])
 def add_ocr_correction():
     """
-    主动学习（数据飞轮）接口：接收医生人工纠错的词对，
-    静默追加至 rules.json 的 corrections 字典中。
+    主动学习（数据飞轮）接口：接收医生人工纠错的词对，静默追加至 rules.json
     """
     try:
         payload = request.json
@@ -194,12 +191,10 @@ def add_ocr_correction():
         with open(rules_path, "r", encoding="utf-8") as f:
             rule_data = json.load(f)
 
-        # 建立/更新字典映射关系
         if "corrections" not in rule_data:
             rule_data["corrections"] = {}
         rule_data["corrections"][wrong_text] = right_text
 
-        # 覆写并重载
         with open(rules_path, "w", encoding="utf-8") as f:
             json.dump(rule_data, f, ensure_ascii=False, indent=4)
 
@@ -215,6 +210,55 @@ def add_ocr_correction():
             200,
         )
     except Exception as e:
+        return jsonify({"code": 500, "message": str(e)}), 500
+
+
+# =====================================================================
+# 接口模块 3：微服务流转与局部动态推理 (新增机制)
+# =====================================================================
+@app.route("/api/dynamic_ner", methods=["POST"])
+def dynamic_ner():
+    """局部 NER 动态推理微服务，仅对发生变动的文本段落进行重载识别"""
+    try:
+        payload = request.json
+        section = payload.get("section")
+        content = payload.get("text")
+
+        from main import run_partial_ner
+
+        entities = run_partial_ner(section, content)
+
+        return jsonify({"code": 200, "entities": entities})
+    except Exception as e:
+        logging.error(f"局部神经推理微服务异常: {str(e)}", exc_info=True)
+        return jsonify({"code": 500, "message": str(e)}), 500
+
+
+@app.route("/api/dynamic_cdss", methods=["POST"])
+def dynamic_cdss():
+    """实时 CDSS 规则拦截微服务，基于当前全量实体状态进行秒级过敏碰撞检测"""
+    try:
+        payload = request.json
+        emr_text = payload.get("emr_text", "")
+        entities = payload.get("entities", [])
+
+        rules_cfg = ConfigManager().get_section("rules")
+        cdss_rules = rules_cfg.get("cdss_rules", [])
+        cdss_warnings = []
+
+        extracted_texts = [e["text"] for e in entities]
+
+        for rule in cdss_rules:
+            # 触发条件 1：病历全文（尤其是既往史）中包含过敏原
+            if rule["allergy"] in emr_text:
+                for drug in rule["drugs"]:
+                    # 触发条件 2：当前内存中保留的实体中包含禁忌药物词根
+                    if any(drug in ent_text for ent_text in extracted_texts):
+                        cdss_warnings.append(rule["warning"].replace("{drug}", drug))
+
+        return jsonify({"code": 200, "warnings": list(set(cdss_warnings))})
+    except Exception as e:
+        logging.error(f"CDSS 微服务异常: {str(e)}", exc_info=True)
         return jsonify({"code": 500, "message": str(e)}), 500
 
 

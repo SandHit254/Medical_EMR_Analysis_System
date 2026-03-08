@@ -17,7 +17,7 @@ class StorageEngine:
     def __init__(self):
         """初始化存储路径"""
         cfg = ConfigManager().get_section("storage")
-        self.root = cfg.get("root_path", "output/records")
+        self.root = cfg.get("root_path", "output/patient_records")
 
     def save_visit_snapshot(
         self,
@@ -31,25 +31,14 @@ class StorageEngine:
     ) -> str:
         """
         持久化单次就诊的全量数据，包括原始图、过程数据及最终结构化 JSON。
-
-        Args:
-            patient_id (str): 患者全局唯一标识符。
-            image_path (str): 原始病历图片路径。
-            raw_ocr (str): 原始 OCR 提取文本。
-            chunks (list): 携带段落标识的短句文本集合。
-            chunked_results (list): 分块保存的实体分析结果。
-            sections (dict): 切分完成的非医疗结构化段落。
-            aggregated_issues (list): 高级组合实体关联结论。
-
-        Returns:
-            str: 当前就诊记录生成的目录路径。
-
-        Raises:
-            StorageError: 当文件权限不足或目录创建失败时抛出。
         """
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        patient_folder = (
+            patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
+        )
+        visit_dir = os.path.join(self.root, patient_folder, f"V_{timestamp}")
+
         try:
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            visit_dir = os.path.join(self.root, f"PID_{patient_id}", f"V_{timestamp}")
             os.makedirs(visit_dir, exist_ok=True)
 
             if os.path.exists(image_path):
@@ -73,6 +62,9 @@ class StorageEngine:
             ) as f:
                 json.dump(chunked_results, f, ensure_ascii=False, indent=4)
 
+            # =========================================================
+            # 生成终态结构化草案
+            # =========================================================
             summary = {
                 "就诊编号": f"V_{timestamp}",
                 "患者ID": patient_id,
@@ -86,6 +78,33 @@ class StorageEngine:
                 all_ents.extend(cr["entities"])
             summary["提取实体"] = all_ents
 
+            # =========================================================
+            # 新增：CDSS 临床决策支持预警 (冲突检测逻辑)
+            # =========================================================
+            rules_cfg = ConfigManager().get_section("rules")
+            cdss_rules = rules_cfg.get("cdss_rules", [])
+            cdss_warnings = []
+
+            # 将结构化文本展平，方便全局查找过敏史
+            emr_full_text = json.dumps(sections, ensure_ascii=False)
+            # 获取所有被 NER 模型提取出的实体纯文本
+            extracted_entity_texts = [e["text"] for e in all_ents]
+
+            for rule in cdss_rules:
+                # 触发条件 1：病历的任何段落（尤其是既往史/过敏史）中出现了过敏原
+                if rule["allergy"] in emr_full_text:
+                    for drug in rule["drugs"]:
+                        # 触发条件 2：只要提取出的实体包含禁忌药名词根，立刻拦截
+                        if any(drug in ent_text for ent_text in extracted_entity_texts):
+                            cdss_warnings.append(
+                                rule["warning"].replace("{drug}", drug)
+                            )
+
+            if cdss_warnings:
+                summary["CDSS预警"] = list(set(cdss_warnings))
+            # =========================================================
+
+            # 生成终态 05 结构化草案文件供 Web 层渲染
             with open(
                 os.path.join(visit_dir, "05_final_summary.json"), "w", encoding="utf-8"
             ) as f:
@@ -94,4 +113,4 @@ class StorageEngine:
             return visit_dir
 
         except Exception as e:
-            raise StorageError(f"文件系统写入失败: {str(e)}")
+            raise StorageError(f"归档过程失败: {str(e)}")

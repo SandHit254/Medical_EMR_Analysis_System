@@ -15,7 +15,6 @@ from app.processor import DataProcessor
 from app.storage import StorageEngine
 from app.exceptions import MedicalSystemError, OCRProcessError, NERModelError
 
-# 配置应用级标准日志输出
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - [%(levelname)s] - %(message)s"
 )
@@ -23,102 +22,64 @@ logger = logging.getLogger(__name__)
 
 
 def generate_patient_id() -> str:
-    """生成并返回全局唯一短标识符"""
-    return uuid.uuid4().hex[:8].upper()
+    return "PID_" + uuid.uuid4().hex[:8].upper()
 
 
 def run_medical_pipeline(image_path: str) -> str:
-    """
-    执行完整的病历分析业务流水线。
-
-    参数:
-        image_path (str): 待处理的病历图片物理路径。
-
-    返回:
-        str: 持久化归档生成的快照目录绝对或相对路径。
-
-    异常:
-        抛出 MedicalSystemError 或 Exception 以便上层调用方进行捕获。
-    """
     logger.info("=" * 50)
-    logger.info("系统启动：医疗病历智能分析模块")
-
+    logger.info(f"开启病历分析管线，目标文件: {image_path}")
     try:
-        # 1. 引擎初始化
-        ocr = OCREngine()
+        ocr_engine = OCREngine()
+        ner_engine = NEREngine()
         processor = DataProcessor()
-        ner = NEREngine()
         storage = StorageEngine()
 
         pid = generate_patient_id()
-        logger.info(f"分配就诊系统标识符: PID_{pid}")
 
-        # 2. 感知层处理
-        logger.info("[环节 1/4] 执行 OCR 图像文本提取任务...")
-        try:
-            raw_text = ocr.extract(image_path)
-        except Exception as e:
-            raise OCRProcessError(f"OCR 引擎故障: {str(e)}")
-
-        # 3. 预处理与结构划分
-        logger.info("[环节 2/4] 执行文本清洗与病历结构划分...")
+        raw_text = ocr_engine.extract(image_path)
         cleaned_text = processor.clean_text(raw_text)
         clinical_sections = processor.extract_clinical_sections(cleaned_text)
-        if clinical_sections:
-            logger.info(f"已识别病历段落: {list(clinical_sections.keys())}")
-
-        # 4. 认知层处理：医疗实体抽取与上下文关联
-        logger.info("[环节 3/4] 结合病历段落执行医疗实体抽取与智能组合...")
 
         chunked_results = []
         all_chunks_text = []
         all_aggregated_issues = []
 
-        for section_name, section_content in clinical_sections.items():
-            if not section_content.strip():
+        for section_name, content in clinical_sections.items():
+            if not content or len(content) < 2:
                 continue
-
-            chunks = processor.split_into_chunks(section_content)
+            chunks = processor.split_into_chunks(content)
+            cursor = 0
+            section_all_entities = []
 
             for chunk in chunks:
-                all_chunks_text.append(f"[{section_name}] {chunk}")
+                all_chunks_text.append(chunk)
+                chunk_start_idx = content.find(chunk, cursor)
+                if chunk_start_idx == -1:
+                    chunk_start_idx = cursor
 
-                try:
-                    raw_entities = ner.predict_chunk(chunk)
-                except Exception as e:
-                    raise NERModelError(
-                        f"NER 模型推理异常，目标句 '{chunk[:10]}...': {str(e)}"
-                    )
-
-                resolved_entities = processor.resolve_nested_entities(raw_entities)
-                final_entities = processor.flag_negations(chunk, resolved_entities)
-
-                # 实体关联计算
-                sentence_issues = processor.aggregate_relations(
-                    final_entities, chunk_text=chunk
-                )
-                for issue in sentence_issues:
-                    issue["来源段落"] = section_name
-                    all_aggregated_issues.append(issue)
-                    logger.info(f"逻辑推断结论: [{section_name}] {issue['临床结论']}")
+                raw_entities = ner_engine.predict_chunk(chunk)
+                final_entities = processor.resolve_nested_entities(raw_entities)
 
                 for ent in final_entities:
-                    ent["所属段落"] = section_name
-                    flag = "[否定语境]" if ent.get("is_negated") else ""
-                    logger.info(
-                        f"实体记录: [{section_name}] -> [{ent['type']}] : {ent['text']} {flag}"
-                    )
+                    ent["start"] += chunk_start_idx
+                    ent["end"] += chunk_start_idx
+                    ent["section"] = section_name
+                    section_all_entities.append(ent)
+                cursor = chunk_start_idx + len(chunk)
 
-                chunked_results.append(
-                    {
-                        "section": section_name,
-                        "chunk_text": chunk,
-                        "entities": final_entities,
-                    }
+            if section_all_entities:
+                section_all_entities = processor.detect_entity_polarity(
+                    entities=section_all_entities, text=content
                 )
 
-        # 5. 持久层归档
-        logger.info("[环节 4/4] 触发持久化存储机制...")
+            chunked_results.append(
+                {
+                    "section": section_name,
+                    "chunk_text": content,
+                    "entities": section_all_entities,
+                }
+            )
+
         save_dir = storage.save_visit_snapshot(
             patient_id=pid,
             image_path=image_path,
@@ -128,26 +89,45 @@ def run_medical_pipeline(image_path: str) -> str:
             sections=clinical_sections,
             aggregated_issues=all_aggregated_issues,
         )
-        logger.info(f"分析流水线执行完毕。系统存档路径: {save_dir}")
-
-        # 关键修改：返回生成的快照目录路径供 Web 层使用
         return save_dir
 
-    except MedicalSystemError as me:
-        logger.error(f"业务逻辑阻断异常: {str(me)}")
-        raise me  # 关键修改：向上抛出异常供调用者捕获
     except Exception as e:
-        logger.error("系统级崩溃拦截，堆栈跟踪信息如下：")
         logger.error(traceback.format_exc())
-        raise e  # 关键修改：向上抛出异常供调用者捕获
-    finally:
-        logger.info("=" * 50)
+        raise e
 
 
-if __name__ == "__main__":
-    # 本地命令行测试逻辑，只有直接运行此文件时才会执行
-    target_image = "test2.jpg"
-    if os.path.exists(target_image):
-        run_medical_pipeline(target_image)
-    else:
-        logger.error(f"未找到测试图像文件: {target_image}")
+# =========================================================================
+# 【新增核心调度器】支持只处理单段文本的局部管线重启
+# =========================================================================
+def run_partial_ner(section_name: str, content: str) -> list:
+    logger.info(f"触发动态流转：正在重载 [{section_name}] 段落的神经推理管线...")
+    ner_engine = NEREngine()
+    processor = DataProcessor()
+
+    chunks = processor.split_into_chunks(content)
+    cursor = 0
+    section_all_entities = []
+
+    for chunk in chunks:
+        chunk_start_idx = content.find(chunk, cursor)
+        if chunk_start_idx == -1:
+            chunk_start_idx = cursor
+
+        raw_entities = ner_engine.predict_chunk(chunk)
+        final_entities = processor.resolve_nested_entities(raw_entities)
+
+        for ent in final_entities:
+            ent["start"] += chunk_start_idx
+            ent["end"] += chunk_start_idx
+            ent["section"] = section_name
+            section_all_entities.append(ent)
+
+        cursor = chunk_start_idx + len(chunk)
+
+    if section_all_entities:
+        section_all_entities = processor.detect_entity_polarity(
+            entities=section_all_entities, text=content
+        )
+
+    logger.info(f"局部管线重载完毕，共提取 {len(section_all_entities)} 个实体。")
+    return section_all_entities
