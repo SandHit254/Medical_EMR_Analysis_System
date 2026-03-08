@@ -44,6 +44,13 @@
           transform: scale(1) translateY(0);
         }
       }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
     </style>
   </head>
   <body class="container-fluid px-xl-5 pb-5">
@@ -73,13 +80,26 @@
       </div>
     </div>
 
-    <header class="page-header mt-4 mb-4">
-      <h2 class="m-0">
-        <i class="bi bi-cpu-fill text-primary"></i> 医疗实体智能感知与复核中枢
-      </h2>
-      <p class="text-muted mt-2" style="font-weight: 400; font-size: 1rem">
-        基于深度学习的高精度临床数据结构化管线
-      </p>
+    <header
+      class="page-header mt-4 mb-4 d-flex justify-content-between align-items-center"
+    >
+      <div>
+        <h2 class="m-0">
+          <i class="bi bi-cpu-fill text-primary"></i> 医疗实体智能感知与复核中枢
+        </h2>
+        <p
+          class="text-muted mt-2 mb-0"
+          style="font-weight: 400; font-size: 1rem"
+        >
+          基于深度学习的高精度临床数据结构化管线
+        </p>
+      </div>
+      <button
+        class="btn btn-outline-primary shadow-sm rounded-pill px-4"
+        onclick="openSettingsConsole()"
+      >
+        <i class="bi bi-sliders"></i> 全局参数与规则控制台
+      </button>
     </header>
 
     <div class="row g-4 justify-content-center">
@@ -92,9 +112,7 @@
             action="/analyze"
             method="post"
             enctype="multipart/form-data"
-            onsubmit="
-              document.getElementById('loading-overlay').style.display = 'flex'
-            "
+            onsubmit="showLoading('系统管线流转中...')"
           >
             <div class="mb-3">
               <input
@@ -111,7 +129,16 @@
             </button>
           </form>
         </div>
-        {% if record %}
+
+        {% if error %}
+        <div
+          class="alert alert-danger glass-card border-0 small shadow-sm"
+          style="background: rgba(254, 226, 226, 0.8)"
+        >
+          <strong><i class="bi bi-exclamation-triangle"></i> 阻断提示：</strong
+          ><br />{{ error }}
+        </div>
+        {% endif %} {% if record %}
         <div class="glass-card p-4 shadow-sm border rounded">
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-hdd-network"></i> 归档元数据
@@ -119,14 +146,14 @@
           <div
             class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2"
           >
-            <span class="text-muted small">就诊流水号</span>
-            <span class="fw-bold text-dark small" id="meta-visit-id"
+            <span class="text-muted small">就诊流水号</span
+            ><span class="fw-bold text-dark small" id="meta-visit-id"
               >{{ record.get('就诊编号', '缺失') }}</span
             >
           </div>
           <div class="d-flex justify-content-between align-items-center">
-            <span class="text-muted small">患者标识符</span>
-            <span class="fw-bold text-dark small" id="meta-patient-id"
+            <span class="text-muted small">患者标识符</span
+            ><span class="fw-bold text-dark small" id="meta-patient-id"
               >{{ record.get('患者ID', '缺失') }}</span
             >
           </div>
@@ -207,13 +234,11 @@
                   style="top: 1.5rem; z-index: 10"
                 >
                   <div class="bg-white p-2 rounded text-center border">
-                    {% if image_filename %}
-                    <img
+                    {% if image_filename %}<img
                       src="/uploads_temp/{{ image_filename }}"
                       class="img-fluid rounded"
                       style="max-height: 75vh; width: 100%; object-fit: contain"
-                    />
-                    {% endif %}
+                    />{% endif %}
                   </div>
                 </div>
                 <div class="col-md-7">
@@ -223,7 +248,7 @@
                     <h6 class="text-muted fw-bold mb-0 small tracking-wide">
                       语义识别投影
                       <span class="badge bg-secondary ms-2 fw-normal"
-                        >选词菜单 / 点击改属性 / 增删文本重载</span
+                        >划词菜单 / 点击干预 / 增删重载</span
                       >
                     </h6>
                   </div>
@@ -285,6 +310,19 @@
             </div>
           </div>
         </div>
+        {% else %}
+        <div
+          class="glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded"
+        >
+          <i
+            class="bi bi-cpu text-primary opacity-25"
+            style="font-size: 5rem"
+          ></i>
+          <h4 class="fw-bold text-dark mb-2 mt-3">引擎挂起中</h4>
+          <p class="text-muted mx-auto">
+            请于左侧控制台上传医疗影像以激活神经感知与逻辑推理模块
+          </p>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -315,50 +353,29 @@
       </button>
     </div>
 
-    <div class="modal fade" id="editOcrTextModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content glass-card border-0 shadow-lg">
-          <div class="modal-header border-bottom-0 pb-0">
-            <h5 class="modal-title fw-bold text-dark">
-              <i class="bi bi-input-cursor-text text-primary"></i> 原始文本干预
-            </h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body pt-3">
-            <input type="hidden" id="edit-ocr-section" />
-            <textarea
+    <div class="modal fade" id="editOcrTextModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card">
+          <div class="modal-body">
+            <input type="hidden" id="edit-ocr-section" /><textarea
               class="form-control bg-light"
               id="edit-ocr-content"
               rows="6"
-              style="line-height: 1.8; font-size: 0.95rem"
             ></textarea>
-
             <div class="d-flex gap-2 mt-4">
               <button
-                type="button"
-                class="btn btn-outline-secondary w-50 py-2"
+                class="btn btn-outline-secondary w-50"
                 onclick="saveOcrText(false)"
               >
-                <i class="bi bi-align-middle"></i> 仅保存文本 (自适应已有实体)
-              </button>
-              <button
-                type="button"
-                class="btn btn-primary w-50 py-2 fw-bold"
-                onclick="saveOcrText(true)"
-              >
-                <i class="bi bi-lightning-charge-fill"></i> 向下传导 (重载 NER
-                识别本段)
+                仅保存文本</button
+              ><button class="btn btn-primary w-50" onclick="saveOcrText(true)">
+                向下传导 (重载NER)
               </button>
             </div>
           </div>
         </div>
       </div>
     </div>
-
     <div class="modal fade" id="ocrCorrectionModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -367,6 +384,7 @@
               type="text"
               id="ocr-wrong-word"
               class="form-control mb-2"
+              readonly
             /><input
               type="text"
               id="ocr-right-word"
@@ -375,7 +393,7 @@
               class="btn btn-primary w-100"
               onclick="submitOcrCorrection(event)"
             >
-              反哺底层规则库
+              反哺
             </button>
           </div>
         </div>
@@ -389,14 +407,15 @@
               type="text"
               id="add-ent-text"
               class="form-control mb-2"
-            /><select id="add-ent-section" class="form-control mb-2"></select
-            ><select id="add-ent-type" class="form-control mb-2">
+              readonly
+            /><select id="add-ent-section" class="form-select mb-2"></select
+            ><select id="add-ent-type" class="form-select mb-2">
               <option>疾病</option>
               <option>症状</option>
               <option>药物</option>
               <option>身体部位</option>
               <option>手术/检查</option></select
-            ><select id="add-ent-polarity" class="form-control mb-3">
+            ><select id="add-ent-polarity" class="form-select mb-3">
               <option>阳性</option>
               <option>阴性</option></select
             ><button class="btn btn-success w-100" onclick="saveNewEntity()">
@@ -417,13 +436,13 @@
               id="edit-display-text"
               class="d-block text-center fw-bold mb-3"
             ></span
-            ><select id="edit-ent-type" class="form-control mb-2">
+            ><select id="edit-ent-type" class="form-select mb-2">
               <option>疾病</option>
               <option>症状</option>
               <option>药物</option>
               <option>身体部位</option>
               <option>手术/检查</option></select
-            ><select id="edit-ent-polarity" class="form-control mb-3">
+            ><select id="edit-ent-polarity" class="form-select mb-3">
               <option>阳性</option>
               <option>阴性</option>
             </select>
@@ -433,6 +452,299 @@
               ><button class="btn btn-primary w-50" onclick="updateEntity()">
                 更新
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="settingsConsoleModal" tabindex="-1">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div
+          class="modal-content border-0 shadow-lg"
+          style="
+            background-color: #f4f4f5;
+            border-radius: 12px;
+            overflow: hidden;
+            height: 85vh;
+          "
+        >
+          <div class="d-flex h-100">
+            <div
+              class="p-3 d-flex flex-column"
+              style="
+                width: 240px;
+                background-color: #eaeaec;
+                border-right: 1px solid #dcdcdc;
+                flex-shrink: 0;
+              "
+            >
+              <h5
+                class="fw-bold text-dark mb-4 px-2 mt-2"
+                style="letter-spacing: 1px"
+              >
+                <i class="bi bi-cpu-fill text-primary"></i> 引擎配置
+              </h5>
+              <ul
+                class="nav nav-pills flex-column gap-2"
+                id="settings-tabs"
+                role="tablist"
+              >
+                <li class="nav-item">
+                  <button
+                    class="nav-link active text-start fw-bold"
+                    data-bs-toggle="tab"
+                    data-bs-target="#set-general"
+                    type="button"
+                    style="border-radius: 8px"
+                  >
+                    <i class="bi bi-sliders me-2"></i> 基础截断与调度
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button
+                    class="nav-link text-start fw-bold"
+                    data-bs-toggle="tab"
+                    data-bs-target="#set-ocr"
+                    type="button"
+                    style="border-radius: 8px"
+                  >
+                    <i class="bi bi-spellcheck me-2"></i> OCR 纠错词典
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button
+                    class="nav-link text-start fw-bold"
+                    data-bs-toggle="tab"
+                    data-bs-target="#set-cdss"
+                    type="button"
+                    style="border-radius: 8px"
+                  >
+                    <i class="bi bi-shield-plus me-2"></i> CDSS 拦截网关
+                  </button>
+                </li>
+                <li class="nav-item mt-auto">
+                  <hr class="my-2 border-secondary opacity-25" />
+                  <button
+                    class="nav-link text-start fw-bold text-danger"
+                    data-bs-toggle="tab"
+                    data-bs-target="#set-dev"
+                    type="button"
+                    style="border-radius: 8px"
+                  >
+                    <i class="bi bi-code-square me-2"></i> 纯文本底层 (JSON)
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div
+              class="d-flex flex-column flex-grow-1 bg-white"
+              style="width: 0"
+            >
+              <div
+                class="px-4 pt-4 pb-3 border-bottom d-flex justify-content-between align-items-center z-1 bg-white"
+              >
+                <h4 class="fw-bold m-0" id="settings-title">基础截断与调度</h4>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                ></button>
+              </div>
+
+              <div
+                class="flex-grow-1 p-4 hide-scrollbar"
+                style="overflow-y: auto; background-color: #fbfbfd"
+              >
+                <div class="tab-content h-100">
+                  <div class="tab-pane fade show active" id="set-general">
+                    <div class="row g-4">
+                      <div class="col-md-6">
+                        <div
+                          class="bg-white p-4 rounded-3 border shadow-sm h-100"
+                        >
+                          <h6 class="fw-bold mb-3 text-dark">
+                            <i class="bi bi-cpu"></i> 算力与推理配置
+                          </h6>
+                          <div class="mb-3">
+                            <label class="form-label small text-muted"
+                              >张量运算设备</label
+                            >
+                            <select
+                              class="form-select form-select-sm"
+                              id="gui-device"
+                            >
+                              <option value="cuda">CUDA (优先 GPU)</option>
+                              <option value="cpu">仅 CPU</option>
+                            </select>
+                          </div>
+                          <div class="mb-3">
+                            <label class="form-label small text-muted"
+                              >NER 置信度阈值</label
+                            >
+                            <input
+                              type="number"
+                              class="form-control form-control-sm"
+                              id="gui-threshold"
+                              step="0.1"
+                              min="0"
+                              max="1"
+                            />
+                          </div>
+                          <div
+                            class="d-flex justify-content-between align-items-center"
+                          >
+                            <span class="small text-muted fw-bold"
+                              >自动纠错前置过滤</span
+                            >
+                            <div class="form-check form-switch m-0">
+                              <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="gui-enable-correction"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div
+                          class="bg-white p-4 rounded-3 border shadow-sm h-100"
+                        >
+                          <h6 class="fw-bold mb-3 text-dark">
+                            <i class="bi bi-symmetry-horizontal"></i>
+                            结构与极性规则
+                          </h6>
+                          <div class="mb-3">
+                            <label class="form-label small text-muted"
+                              >极性传导与否定词</label
+                            >
+                            <input
+                              type="text"
+                              class="form-control form-control-sm"
+                              id="gui-negation"
+                              placeholder="无, 否, 未见"
+                            />
+                          </div>
+                          <div class="mb-0">
+                            <label class="form-label small text-muted"
+                              >病历段落截断锚点</label
+                            >
+                            <textarea
+                              class="form-control form-control-sm"
+                              id="gui-sections"
+                              rows="4"
+                              placeholder="主诉, 现病史, 既往史..."
+                            ></textarea>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="tab-pane fade" id="set-ocr">
+                    <div
+                      class="d-flex justify-content-between align-items-center mb-3"
+                    >
+                      <span class="text-muted small"
+                        >底层清洗策略，识别到左侧错词将强制替换为右侧正词。</span
+                      >
+                      <button
+                        class="btn btn-sm btn-outline-primary fw-bold"
+                        onclick="addOcrGuiRow()"
+                      >
+                        <i class="bi bi-plus-lg"></i> 新增词对
+                      </button>
+                    </div>
+                    <div class="row fw-bold text-muted small mb-2 px-2">
+                      <div class="col-5">OCR 识别错词</div>
+                      <div class="col-5">期望正确名词</div>
+                      <div class="col-2 text-center">操作</div>
+                    </div>
+                    <div id="ocr-gui-container"></div>
+                  </div>
+
+                  <div class="tab-pane fade" id="set-cdss">
+                    <div
+                      class="d-flex justify-content-between align-items-center mb-3"
+                    >
+                      <span class="text-muted small"
+                        >临床辅助决策安全拦截规则矩阵。</span
+                      >
+                      <button
+                        class="btn btn-sm btn-outline-success fw-bold"
+                        onclick="addCdssGuiCard()"
+                      >
+                        <i class="bi bi-plus-lg"></i> 新增拦截规则
+                      </button>
+                    </div>
+                    <div id="cdss-gui-container"></div>
+                  </div>
+
+                  <div class="tab-pane fade h-100" id="set-dev">
+                    <div class="d-flex flex-column h-100">
+                      <div
+                        class="alert alert-warning py-2 small border-0 d-flex align-items-center mb-2"
+                      >
+                        <i
+                          class="bi bi-exclamation-triangle-fill fs-5 me-2"
+                        ></i>
+                        <span
+                          ><strong>全局数据映射：</strong>
+                          此处实时同步了所有的配置结构。保存时将以此处文本框内容为准。</span
+                        >
+                      </div>
+                      <textarea
+                        class="form-control bg-dark text-success flex-grow-1 border-0"
+                        id="editor-raw-json"
+                        style="
+                          font-family: &quot;Consolas&quot;, monospace;
+                          font-size: 0.85rem;
+                          resize: none;
+                          min-height: 400px;
+                        "
+                      ></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="px-4 py-3 border-top bg-white d-flex justify-content-between align-items-center z-1"
+              >
+                <div>
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm px-3 fw-bold"
+                    onclick="restoreFactorySettings()"
+                  >
+                    <i class="bi bi-arrow-counterclockwise"></i> 恢复出厂设置
+                  </button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span
+                    class="text-success small fw-bold me-2"
+                    id="settings-save-msg"
+                    style="display: none"
+                    ><i class="bi bi-check-circle-fill"></i> 热重载已生效</span
+                  >
+                  <button
+                    type="button"
+                    class="btn btn-light border px-4"
+                    data-bs-dismiss="modal"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary px-4 fw-bold shadow-sm"
+                    onclick="saveSettingsConsole(this)"
+                  >
+                    <i class="bi bi-save2"></i> 保存并热重载
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

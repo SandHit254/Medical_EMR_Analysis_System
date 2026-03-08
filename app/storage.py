@@ -1,6 +1,8 @@
 """
 模块名称：持久层与存储控制模块
 功能描述：控制底层文件系统，对系统管线的执行结果进行统一归档与快照持久化。
+         包含目录创建、原始图像备份、OCR 中间件落盘、NER 结果存储
+         以及触发临床决策支持系统 (CDSS) 的冲突拦截。
 """
 
 import os
@@ -12,10 +14,20 @@ from app.exceptions import StorageError
 
 
 class StorageEngine:
-    """本地存储引擎类"""
+    """
+    本地文件存储引擎。
+
+    负责根据就诊批次生成独立的流水目录，并按流转顺序落盘各个模型节点的输出状态，
+    从而保证临床数据的防篡改性与完全可溯源性。
+    """
 
     def __init__(self):
-        """初始化存储路径"""
+        """
+        初始化存储引擎。
+
+        从全局配置中心 (ConfigManager) 中动态读取 'storage' 配置节点，
+        并设定系统结构化数据归档的物理根目录。
+        """
         cfg = ConfigManager().get_section("storage")
         self.root = cfg.get("root_path", "output/patient_records")
 
@@ -30,7 +42,26 @@ class StorageEngine:
         aggregated_issues: list,
     ) -> str:
         """
-        持久化单次就诊的全量数据，包括原始图、过程数据及最终结构化 JSON。
+        持久化单次就诊的全量业务数据，并触发 CDSS 预警校验。
+
+        该方法按顺序生成 01_source 到 05_final_summary 的快照文件，涵盖从
+        原始图像到最终结构化提取结果的全生命周期。同时，会在最终步骤中读取内存中的
+        CDSS 规则库，对当前提取的实体与病历文本进行过敏原/禁忌药物的碰撞计算。
+
+        Args:
+            patient_id (str): 患者的唯一身份标识符 (如 "PID_XXXXX")。
+            image_path (str): 前端上传后缓存在本地的原始医疗扫描件物理路径。
+            raw_ocr (str): OCR 引擎提取出的全量未经清洗的原始脏文本。
+            chunks (list): 经过物理标点切片处理的短句字符串列表。
+            chunked_results (list): 包含各个短句文本及其被提取出实体的详细参数列表字典。
+            sections (dict): 按照 "主诉"、"现病史" 等标准临床表头进行结构化切割的文本字典。
+            aggregated_issues (list): 智能诊断逻辑抛出的核心问题汇总列表。
+
+        Returns:
+            str: 生成的本次就诊批次专属存储根目录路径 (例如 'output/patient_records/PID_XXX/V_XXX')。
+
+        Raises:
+            StorageError: 当物理磁盘路径创建失败、文件权限不足或 JSON 序列化发生异常时抛出。
         """
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         patient_folder = (
@@ -79,7 +110,7 @@ class StorageEngine:
             summary["提取实体"] = all_ents
 
             # =========================================================
-            # 新增：CDSS 临床决策支持预警 (冲突检测逻辑)
+            # CDSS 临床决策支持预警 (冲突检测逻辑)
             # =========================================================
             rules_cfg = ConfigManager().get_section("rules")
             cdss_rules = rules_cfg.get("cdss_rules", [])

@@ -8,6 +8,7 @@
 import os
 import json
 import logging
+import shutil
 from flask import Flask, request, render_template, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
@@ -20,13 +21,11 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["HF_UPDATE_DEFAULT_BETA"] = "False"
 
-# 引入核心模型管线调度器与配置中心
 from main import run_medical_pipeline
 from app.config_manager import ConfigManager
 
 app = Flask(__name__)
 
-# 配置运行时目录及文件 IO 限制
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads_temp")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output", "patient_records")
@@ -34,9 +33,7 @@ CONFIGS_DIR = os.path.join(BASE_DIR, "configs")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 内存安全阈值：16MB
-
-# 允许处理的图像扩展名集
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "tiff"}
 
 
@@ -57,24 +54,14 @@ def serve_image(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 
-# =====================================================================
-# 接口模块 1：面向前端工作站的可视化核心路由
-# =====================================================================
 @app.route("/analyze", methods=["POST"])
 def analyze_view():
-    """
-    接收多段表单数据，调度底层模型推理管线，并将结构化参数交由 Jinja2 渲染。
-    """
+    """接收多段表单数据，调度底层模型推理管线，并将结构化参数交由 Jinja2 渲染"""
     if "image" not in request.files:
-        return render_template(
-            "index.html", error="I/O 异常：请求体中缺失图像二进制流。"
-        )
-
+        return render_template("index.html", error="I/O 异常：缺失图像。")
     file = request.files["image"]
     if file.filename == "" or not allowed_file(file.filename):
-        return render_template(
-            "index.html", error="I/O 异常：文件为空或为不受支持的格式类型。"
-        )
+        return render_template("index.html", error="I/O 异常：文件为空或格式不支持。")
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
@@ -83,7 +70,6 @@ def analyze_view():
     try:
         snapshot_dir = run_medical_pipeline(file_path)
         json_target_path = os.path.join(snapshot_dir, "05_final_summary.json")
-
         if os.path.exists(json_target_path):
             with open(json_target_path, "r", encoding="utf-8") as f:
                 record_data = json.load(f)
@@ -92,176 +78,153 @@ def analyze_view():
             )
         else:
             return render_template(
-                "index.html", error=f"模型管线中断：缺失状态机文件 {json_target_path}"
+                "index.html", error=f"缺失状态机文件 {json_target_path}"
             )
-
     except Exception as e:
-        logging.error(f"视图渲染层捕获底层调度器异常: {str(e)}", exc_info=True)
+        logging.error(f"视图渲染层捕获异常: {str(e)}", exc_info=True)
         return render_template("index.html", error=f"内核级错误: {str(e)}")
 
 
 @app.route("/save_report", methods=["POST"])
 def save_report():
-    """
-    数据质控回传接口：接收经医疗人员人工核对后的修正数据并持久化落库。
-    """
+    """数据质控回传接口：接收经医疗人员人工核对后的修正数据并持久化落库"""
     try:
         payload = request.json
         visit_id = payload.get("就诊编号")
         patient_id = payload.get("患者ID", "UNKNOWN")
-
         if not visit_id or not visit_id.startswith("V_"):
-            return (
-                jsonify({"status": "error", "message": "非法的就诊批次标识符。"}),
-                400,
-            )
+            return jsonify({"status": "error", "message": "非法的就诊批次。"})
 
         patient_folder_name = (
             patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
         )
         target_dir = os.path.join(OUTPUT_DIR, patient_folder_name, visit_id)
-
         if not os.path.exists(target_dir):
-            return (
-                jsonify({"status": "error", "message": "无法寻址至目标物理存储目录。"}),
-                404,
-            )
+            return jsonify({"status": "error", "message": "无法寻址存储目录。"})
 
         save_path = os.path.join(target_dir, "06_human_verified.json")
         with open(save_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=4)
-
         return jsonify({"status": "success", "message": "修正数据回存完毕。"})
     except Exception as e:
-        return (
-            jsonify({"status": "error", "message": f"持久化 I/O 错误: {str(e)}"}),
-            500,
-        )
+        return jsonify({"status": "error", "message": f"持久化 I/O 错误: {str(e)}"})
 
 
-# =====================================================================
-# 接口模块 2：参数热重载与数据飞轮 API
-# =====================================================================
-@app.route("/api/settings/rules", methods=["GET"])
-def get_rules_settings():
-    """读取并下发底层 rules.json 配置，供前端可视化控制台渲染"""
+@app.route("/api/settings/all", methods=["GET"])
+def get_all_settings():
+    """将三个配置文件合并为一个大字典返回给前端"""
     try:
-        rules_path = os.path.join(CONFIGS_DIR, "rules.json")
-        with open(rules_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return jsonify({"code": 200, "message": "success", "data": data}), 200
+        config_data = {}
+        for fname in ["rules.json", "global_settings.json", "model.json"]:
+            path = os.path.join(CONFIGS_DIR, fname)
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    config_data[fname.replace(".json", "")] = json.load(f)
+        return jsonify({"code": 200, "message": "success", "data": config_data})
     except Exception as e:
-        return jsonify({"code": 500, "message": f"读取配置失败: {str(e)}"}), 500
+        return jsonify({"code": 500, "message": f"读取配置失败: {str(e)}"})
 
 
-@app.route("/api/settings/rules", methods=["POST"])
-def update_rules_settings():
-    """接收前端面板参数覆写 rules.json，并即刻触发底层内存热重载"""
+@app.route("/api/settings/all", methods=["POST"])
+def update_all_settings():
+    """接收前端传回的大字典，拆分并覆写回三个独立文件"""
     try:
         new_data = request.json
-        rules_path = os.path.join(CONFIGS_DIR, "rules.json")
+        for fname in ["rules.json", "global_settings.json", "model.json"]:
+            key = fname.replace(".json", "")
+            if key in new_data:
+                path = os.path.join(CONFIGS_DIR, fname)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(new_data[key], f, ensure_ascii=False, indent=4)
+        ConfigManager().reload()
+        return jsonify({"code": 200, "message": "所有全局配置已覆写并热重载完毕。"})
+    except Exception as e:
+        return jsonify({"code": 500, "message": f"配置下发失败: {str(e)}"})
 
-        with open(rules_path, "w", encoding="utf-8") as f:
-            json.dump(new_data, f, ensure_ascii=False, indent=4)
+
+@app.route("/api/settings/restore", methods=["POST"])
+def restore_settings():
+    """遍历三个配置文件，从对应的 _default.json 中恢复并热重载"""
+    try:
+        restored_files = []
+        for fname in ["rules", "global_settings", "model"]:
+            default_path = os.path.join(CONFIGS_DIR, f"{fname}_default.json")
+            target_path = os.path.join(CONFIGS_DIR, f"{fname}.json")
+
+            if os.path.exists(default_path):
+                shutil.copyfile(default_path, target_path)
+                restored_files.append(fname)
+
+        if not restored_files:
+            return jsonify(
+                {"code": 404, "message": "未找到任何 _default.json 备份文件。"}
+            )
 
         ConfigManager().reload()
-
-        return jsonify({"code": 200, "message": "业务规则已覆写，热重载完成。"}), 200
+        return jsonify(
+            {"code": 200, "message": f"已成功恢复文件：{', '.join(restored_files)}！"}
+        )
     except Exception as e:
-        return jsonify({"code": 500, "message": f"配置下发失败: {str(e)}"}), 500
+        return jsonify({"code": 500, "message": f"恢复出厂设置失败: {str(e)}"})
 
 
 @app.route("/api/ocr/correct", methods=["POST"])
 def add_ocr_correction():
-    """
-    主动学习（数据飞轮）接口：接收医生人工纠错的词对，静默追加至 rules.json
-    """
+    """主动学习（数据飞轮）接口：接收前端反馈并向底层规则字典静默注入人工纠错规则"""
     try:
         payload = request.json
-        wrong_text = payload.get("wrong")
-        right_text = payload.get("right")
-
+        wrong_text, right_text = payload.get("wrong"), payload.get("right")
         if not wrong_text or not right_text:
-            return (
-                jsonify({"code": 400, "message": "参数异常：缺失源词或目标词。"}),
-                400,
-            )
+            return jsonify({"code": 400, "message": "参数异常。"})
 
         rules_path = os.path.join(CONFIGS_DIR, "rules.json")
         with open(rules_path, "r", encoding="utf-8") as f:
             rule_data = json.load(f)
-
         if "corrections" not in rule_data:
             rule_data["corrections"] = {}
         rule_data["corrections"][wrong_text] = right_text
-
         with open(rules_path, "w", encoding="utf-8") as f:
             json.dump(rule_data, f, ensure_ascii=False, indent=4)
-
         ConfigManager().reload()
-
-        return (
-            jsonify(
-                {
-                    "code": 200,
-                    "message": f"主动学习记录成功：'{wrong_text}' -> '{right_text}'",
-                }
-            ),
-            200,
-        )
+        return jsonify({"code": 200, "message": "反哺成功"})
     except Exception as e:
-        return jsonify({"code": 500, "message": str(e)}), 500
+        return jsonify({"code": 500, "message": str(e)})
 
 
-# =====================================================================
-# 接口模块 3：微服务流转与局部动态推理 (新增机制)
-# =====================================================================
 @app.route("/api/dynamic_ner", methods=["POST"])
 def dynamic_ner():
-    """局部 NER 动态推理微服务，仅对发生变动的文本段落进行重载识别"""
+    """局部 NER 动态推理微服务接口"""
     try:
         payload = request.json
-        section = payload.get("section")
-        content = payload.get("text")
-
+        section, content = payload.get("section"), payload.get("text")
         from main import run_partial_ner
 
         entities = run_partial_ner(section, content)
-
         return jsonify({"code": 200, "entities": entities})
     except Exception as e:
-        logging.error(f"局部神经推理微服务异常: {str(e)}", exc_info=True)
-        return jsonify({"code": 500, "message": str(e)}), 500
+        return jsonify({"code": 500, "message": str(e)})
 
 
 @app.route("/api/dynamic_cdss", methods=["POST"])
 def dynamic_cdss():
-    """实时 CDSS 规则拦截微服务，基于当前全量实体状态进行秒级过敏碰撞检测"""
+    """CDSS 临床辅助决策安全网关，实时碰撞实体与过敏规则"""
     try:
         payload = request.json
-        emr_text = payload.get("emr_text", "")
-        entities = payload.get("entities", [])
-
+        emr_text, entities = payload.get("emr_text", ""), payload.get("entities", [])
         rules_cfg = ConfigManager().get_section("rules")
         cdss_rules = rules_cfg.get("cdss_rules", [])
         cdss_warnings = []
-
         extracted_texts = [e["text"] for e in entities]
 
         for rule in cdss_rules:
-            # 触发条件 1：病历全文（尤其是既往史）中包含过敏原
             if rule["allergy"] in emr_text:
                 for drug in rule["drugs"]:
-                    # 触发条件 2：当前内存中保留的实体中包含禁忌药物词根
                     if any(drug in ent_text for ent_text in extracted_texts):
                         cdss_warnings.append(rule["warning"].replace("{drug}", drug))
-
         return jsonify({"code": 200, "warnings": list(set(cdss_warnings))})
     except Exception as e:
-        logging.error(f"CDSS 微服务异常: {str(e)}", exc_info=True)
-        return jsonify({"code": 500, "message": str(e)}), 500
+        return jsonify({"code": 500, "message": str(e)})
 
 
 if __name__ == "__main__":
-    # 启用多线程模式以应对并发验证测试
     app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)

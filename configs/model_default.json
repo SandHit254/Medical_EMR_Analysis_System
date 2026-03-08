@@ -1,0 +1,14 @@
+{
+    "ner": {
+        "checkpoint_path": "models/ner_model.pt",
+        "bert_pretrain_path": "hfl/chinese-macbert-base",
+        "max_len": 128,
+        "inference_threshold": 0.0,
+        "inner_dim": 64,
+        "categories": ["dis", "sym", "dru", "equ", "pro", "bod", "ite", "mic", "dep"],
+        "id2label": {
+            "dis": "疾病", "sym": "症状", "dru": "药物", "equ": "设备", 
+            "pro": "手术/检查", "bod": "身体部位", "ite": "指标", "mic": "微生物", "dep": "科室"
+        }
+    }
+}

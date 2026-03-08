@@ -1,5 +1,7 @@
-/* * 文件名称：style.css
- * 功能描述：医疗工作站全局样式表
+/*
+ * 模块名称：全局样式表 (CSS)
+ * 功能描述：定义医疗工作站的前端视觉规范，包含拟物玻璃态设计、实体分类着色系统、
+ * 响应式布局修正以及动态预警动画。
  */
 
 :root {
@@ -17,6 +19,10 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* ====================================================================
+ * 核心组件视觉 (Components)
+ * ==================================================================== */
+
 .glass-card {
     background: var(--surface-color);
     backdrop-filter: saturate(180%) blur(20px);
@@ -24,108 +30,62 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 16px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
-}
-
-.glass-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.08);
-}
-
-.page-header {
-    padding: 2.5rem 0 1.5rem;
-    text-align: center;
-    background: linear-gradient(135deg, #1d1d1f 0%, #434350 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-
-.nav-tabs {
-    border-bottom: 1px solid #e5e5ea;
-    gap: 10px;
-}
-
-.nav-tabs .nav-link {
-    color: var(--text-muted);
-    border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-.nav-tabs .nav-link:hover {
-    background-color: rgba(0, 113, 227, 0.05);
-    color: var(--primary-color);
-}
-
-.nav-tabs .nav-link.active {
-    background-color: rgba(0, 113, 227, 0.1);
-    color: var(--primary-color);
-    font-weight: 600;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s;
 }
 
 .entity-box {
     display: inline-flex;
     align-items: center;
-    margin: 3px 2px;
+    margin: 0 4px;
     border-radius: 6px;
-    font-size: 0.95rem;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
-    transition: all 0.2s ease;
-}
-
-.entity-box:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    font-size: 0.9rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .entity-text {
-    padding: 3px 6px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-right: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .entity-label {
-    font-size: 0.65rem;
-    padding: 3px 6px;
-    border-left: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    opacity: 0.8;
 }
 
+/* ====================================================================
+ * 实体类型着色系统 (Entity Color Encoding)
+ * ==================================================================== */
+
 .type-疾病 {
-    background: linear-gradient(135deg, #fff0f2 0%, #ffe4e6 100%);
-    color: #be123c;
-    border: 1px solid rgba(253, 164, 175, 0.5);
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #b91c1c;
+    border: 1px solid rgba(248, 113, 113, 0.5);
 }
 
 .type-症状 {
-    background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
     color: #b45309;
-    border: 1px solid rgba(252, 211, 77, 0.5);
+    border: 1px solid rgba(251, 191, 36, 0.5);
 }
 
 .type-药物 {
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-    color: #0369a1;
-    border: 1px solid rgba(125, 211, 252, 0.5);
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1d4ed8;
+    border: 1px solid rgba(96, 165, 250, 0.5);
 }
 
 .type-身体部位 {
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-    color: #15803d;
-    border: 1px solid rgba(134, 239, 172, 0.5);
+    background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+    color: #7e22ce;
+    border: 1px solid rgba(216, 180, 254, 0.5);
 }
 
 .type-手术_检查 {
-    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
-    color: #7e22ce;
-    border: 1px solid rgba(216, 180, 254, 0.5);
+    background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+    color: #0f766e;
+    border: 1px solid rgba(94, 234, 212, 0.5);
 }
 
 .type-科室 {
@@ -133,6 +93,10 @@ body {
     color: #0f766e;
     border: 1px solid rgba(94, 234, 212, 0.5);
 }
+
+/* ====================================================================
+ * 基础排版与表单 (Typography & Forms)
+ * ==================================================================== */
 
 .text-panel {
     line-height: 2.2;
@@ -158,42 +122,33 @@ body {
 .form-control {
     border-radius: 8px;
     border: 1px solid #d2d2d7;
-    background-color: rgba(255, 255, 255, 0.8);
-    transition: all 0.3s ease;
 }
 
 .form-control:focus {
-    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
 }
 
-::-webkit-scrollbar {
-    width: 8px;
+/* ====================================================================
+ * 全局配置中心定制样式 (Settings Console Overrides)
+ * ==================================================================== */
+
+#settings-tabs .nav-link {
+    color: #4b5563;
+    transition: all 0.2s;
 }
 
-::-webkit-scrollbar-track {
-    background: transparent;
+#settings-tabs .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.04);
 }
 
-::-webkit-scrollbar-thumb {
-    background: #d2d2d7;
-    border-radius: 10px;
+#settings-tabs .nav-link.active {
+    background-color: white;
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: #86868b;
-}
-
-#loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.9);
-    z-index: 9999;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(10px);
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
