@@ -38,6 +38,7 @@ def run_medical_pipeline(image_path: str) -> str:
 
     该管线依次调度感知层 (OCR) 提取文本、数据处理层清洗切分、
     认知层 (NER) 提取实体、逻辑层极性判定，最终由持久层落盘归档。
+    并在落盘前，基于模型提取的阳性实体，自动生成智能诊断汇总报告。
 
     Args:
         image_path (str): 前端上传并缓存至本地的医疗影像物理路径。
@@ -94,6 +95,7 @@ def run_medical_pipeline(image_path: str) -> str:
                     ent["end"] += chunk_start_idx
                     ent["section"] = section_name
                     section_all_entities.append(ent)
+
                 cursor = chunk_start_idx + len(chunk)
 
             # 4. 后置极性传导 (阴阳性判定)
@@ -110,7 +112,39 @@ def run_medical_pipeline(image_path: str) -> str:
                 }
             )
 
-        # 5. 生成持久化防篡改快照并触发 CDSS 检查
+        # =========================================================
+        # 5. 智能诊断核心问题 (基于提取出的阳性实体进行逻辑汇总)
+        # =========================================================
+        all_ents = []
+        for cr in chunked_results:
+            all_ents.extend(cr["entities"])
+
+        positive_diseases = set(
+            e["text"]
+            for e in all_ents
+            if e["type"] == "疾病" and e.get("polarity") != "阴性"
+        )
+        positive_symptoms = set(
+            e["text"]
+            for e in all_ents
+            if e["type"] == "症状" and e.get("polarity") != "阴性"
+        )
+
+        if positive_diseases:
+            all_aggregated_issues.append(
+                f"模型检出阳性疾病指征: {', '.join(positive_diseases)}。"
+            )
+        if positive_symptoms:
+            all_aggregated_issues.append(
+                f"患者伴随主要病理症状: {', '.join(positive_symptoms)}。"
+            )
+        if not positive_diseases and not positive_symptoms:
+            all_aggregated_issues.append(
+                "未提取到明显的阳性疾病或症状指标，请结合临床或影像学作进一步判定。"
+            )
+        # =========================================================
+
+        # 6. 生成持久化防篡改快照并触发 CDSS 检查
         save_dir = storage.save_visit_snapshot(
             patient_id=pid,
             image_path=image_path,

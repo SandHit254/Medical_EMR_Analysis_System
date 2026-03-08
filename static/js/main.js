@@ -1,48 +1,25 @@
 /**
  * 模块名称：前端状态机与交互流转控制模块
- * 功能描述：负责前端 DOM 动态渲染、自适应坐标重组、微服务异步调度，
- * 以及基于 GUI 与 JSON 双向同步的全局参数控制中心。
  */
 
-/**
- * 唤起全局防阻断加载遮罩。
- *
- * Args:
- * text (string): 遮罩层中显示的提示文案。
- */
-function showLoading(text="神经引擎介入中...") { 
-    document.getElementById('loading-text').innerText = text; 
-    document.getElementById('loading-overlay').style.display = 'flex'; 
-}
+function showLoading(text="神经引擎介入中...") { document.getElementById('loading-text').innerText = text; document.getElementById('loading-overlay').style.display = 'flex'; }
+function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+function escapeHtml(text) { if (!text) return ""; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
-/**
- * 隐藏全局加载遮罩。
- */
-function hideLoading() { 
-    document.getElementById('loading-overlay').style.display = 'none'; 
-}
+/* ====================================================================
+ * 表单焦点状态追踪 (Input Focus Tracker)
+ * ==================================================================== */
+let activeInputField = null;
 
-/**
- * HTML 字符转义过滤。
- * 防御 XSS 注入，确保文本在渲染到 DOM 时标签闭合安全。
- *
- * Args:
- * text (string): 原始文本字符串。
- *
- * Returns:
- * string: 经过安全转义的纯文本。
- */
-function escapeHtml(text) { 
-    if (!text) return ""; 
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); 
-}
+document.addEventListener('focusin', function(e) {
+    if (e.target && e.target.classList.contains('emr-input-target')) {
+        if (activeInputField) activeInputField.classList.remove('active-input-field');
+        activeInputField = e.target;
+        activeInputField.classList.add('active-input-field');
+    }
+});
 
-/**
- * 核心渲染引擎：投影实体视图。
- *
- * 遍历全局状态机中的 EMR 文本数据与实体数据，通过绝对坐标进行文本切割，
- * 动态拼接出带有实体高亮标签、极性状态（删除线）的 HTML 字符串，并挂载至视图层。
- */
+
 function renderEntityHighlights() {
     const context = window.SYSTEM_CONTEXT;
     if (!context || !context.emrData) return;
@@ -54,18 +31,15 @@ function renderEntityHighlights() {
         const rawText = context.emrData[sectionName];
         if (!rawText || rawText.trim() === '') return;
         
-        // 过滤出当前段落的实体，并按起始坐标排序
         const sectionEntities = context.entitiesData.filter(ent => ent.section === sectionName || ent['所属段落'] === sectionName).sort((a, b) => a.start - b.start);
         let htmlStream = "";
         let cursor = 0;
 
         sectionEntities.forEach(ent => {
             if (ent.start >= cursor) {
-                // 拼接实体前方的普通文本
                 htmlStream += escapeHtml(rawText.substring(cursor, ent.start));
                 const safeClass = ent.type.replace(/\//g, '_');
                 
-                // 处理极性逻辑样式
                 const isNegative = ent.polarity === '阴性';
                 const polarityStyle = isNegative ? 'opacity: 0.5; text-decoration: line-through;' : '';
                 const polarityBadge = isNegative ? '<span style="color:#ef4444;font-size:0.6rem;margin-left:4px;">(排除)</span>' : '';
@@ -75,7 +49,6 @@ function renderEntityHighlights() {
             }
         });
         
-        // 拼接剩余普通文本
         htmlStream += escapeHtml(rawText.substring(cursor));
 
         const sectionWrapper = document.createElement('div');
@@ -90,12 +63,76 @@ function renderEntityHighlights() {
         `;
         renderTarget.appendChild(sectionWrapper);
     });
+
+    renderEntityChips();
 }
 
 /**
- * 触发微服务流转：临床决策支持系统 (CDSS) 动态校验。
- * 将当前文本库与实体树异步发送至后端，拦截命中用药禁忌的操作并触发高危红色预警。
+ * 右侧栏：全局实体弹药库 (Entity Chips)
  */
+function renderEntityChips() {
+    const context = window.SYSTEM_CONTEXT;
+    const pool = document.getElementById('global-chip-pool');
+    if (!pool || !context || !context.entitiesData) return;
+    pool.innerHTML = '';
+
+    context.entitiesData.forEach(ent => {
+        const safeClass = ent.type.replace(/\//g, '_');
+        const isNegative = ent.polarity === '阴性';
+        
+        const chip = document.createElement('span');
+        chip.className = `badge rounded-pill me-2 mb-2 px-3 py-2 entity-chip type-${safeClass}`;
+        
+        if (isNegative) {
+            chip.style.opacity = '0.6';
+            chip.style.textDecoration = 'line-through';
+            chip.innerHTML = `<i class="bi bi-dash-circle me-1"></i>${escapeHtml(ent.text)}`;
+            chip.title = "阴性(排除)体征，将填入：无" + ent.text;
+        } else {
+            chip.innerHTML = `<i class="bi bi-plus-circle me-1"></i>${escapeHtml(ent.text)}`;
+            chip.title = "阳性体征，点击填入选中框";
+        }
+        
+        chip.onclick = function() {
+            if (!activeInputField) {
+                alert("👉 录入提示：\n请先在左侧表单中点击选中你要填写的框（如'主诉'或'过敏史'），然后再点击此处标签填入。");
+                return;
+            }
+            
+            const currentVal = activeInputField.value.trim();
+            let insertText = isNegative ? `无${ent.text}` : ent.text;
+            
+            if (currentVal && !currentVal.endsWith('，') && !currentVal.endsWith('。') && !currentVal.endsWith('、')) {
+                activeInputField.value = currentVal + '，' + insertText;
+            } else {
+                activeInputField.value = currentVal + insertText;
+            }
+            
+            window.SYSTEM_CONTEXT.emrData[activeInputField.name] = activeInputField.value;
+        };
+        pool.appendChild(chip);
+    });
+}
+
+/**
+ * 诊断意见区：点击 AI 预填摘要药丸，追加至最终诊断文本框。
+ */
+window.insertDiagnosis = function(text) {
+    const textarea = document.getElementById('final-diagnosis-text');
+    if (textarea) {
+        const currentVal = textarea.value.trim();
+        if (currentVal && !currentVal.endsWith('\n')) {
+            textarea.value = currentVal + '\n' + text;
+        } else {
+            textarea.value = currentVal + text;
+        }
+        
+        // 视觉交互反馈 (浅绿色闪烁)
+        textarea.style.backgroundColor = '#dcfce7'; 
+        setTimeout(() => textarea.style.backgroundColor = '#f8f9fa', 300);
+    }
+};
+
 function triggerDynamicCDSS() {
     const fullText = Object.values(window.SYSTEM_CONTEXT.emrData).join(" ");
     fetch('/api/dynamic_cdss', {
@@ -110,25 +147,12 @@ function triggerDynamicCDSS() {
     });
 }
 
-/**
- * 开启原始文本复核模态框。
- *
- * Args:
- * sectionName (string): 触发段落名称。
- */
 window.openOcrEditor = function(sectionName) {
     document.getElementById('edit-ocr-section').value = sectionName;
     document.getElementById('edit-ocr-content').value = window.SYSTEM_CONTEXT.emrData[sectionName] || "";
     new bootstrap.Modal(document.getElementById('editOcrTextModal')).show();
 };
 
-/**
- * 保存修改后的段落文本，并触发重组引擎。
- *
- * Args:
- * triggerNerReload (boolean): 若为 false，仅在前端内存中强行修正坐标漂移；
- * 若为 true，异步调用微服务进行大模型局部重推断。
- */
 window.saveOcrText = function(triggerNerReload) {
     const section = document.getElementById('edit-ocr-section').value;
     const newText = document.getElementById('edit-ocr-content').value.trim();
@@ -168,32 +192,17 @@ window.saveOcrText = function(triggerNerReload) {
     }
 };
 
-/**
- * 唤醒实体属性编辑面板。
- */
 window.openEntityEditor = function(text, start, section, type, polarity) {
     document.getElementById('edit-ent-text').value = text; document.getElementById('edit-ent-start').value = start; document.getElementById('edit-ent-section').value = section;
     document.getElementById('edit-display-text').innerText = text; document.getElementById('edit-ent-type').value = type; document.getElementById('edit-ent-polarity').value = polarity || '阳性';
     new bootstrap.Modal(document.getElementById('editEntityModal')).show();
 };
-
-/**
- * 执行实体的属性（类别/极性）修改并更新视图。
- */
 window.updateEntity = function() {
     const text = document.getElementById('edit-ent-text').value; const start = parseInt(document.getElementById('edit-ent-start').value); const section = document.getElementById('edit-ent-section').value;
     const ent = window.SYSTEM_CONTEXT.entitiesData.find(e => e.text === text && e.start === start && (e.section === section || e['所属段落'] === section));
-    if (ent) { 
-        ent.type = document.getElementById('edit-ent-type').value; 
-        ent.polarity = document.getElementById('edit-ent-polarity').value; 
-        renderEntityHighlights(); triggerDynamicCDSS(); 
-    }
+    if (ent) { ent.type = document.getElementById('edit-ent-type').value; ent.polarity = document.getElementById('edit-ent-polarity').value; renderEntityHighlights(); triggerDynamicCDSS(); }
     bootstrap.Modal.getInstance(document.getElementById('editEntityModal')).hide();
 };
-
-/**
- * 从全局状态树中彻底剔除选中实体。
- */
 window.deleteEntity = function() {
     const text = document.getElementById('edit-ent-text').value; const start = parseInt(document.getElementById('edit-ent-start').value); const section = document.getElementById('edit-ent-section').value;
     const index = window.SYSTEM_CONTEXT.entitiesData.findIndex(e => e.text === text && e.start === start && (e.section === section || e['所属段落'] === section));
@@ -201,11 +210,7 @@ window.deleteEntity = function() {
     bootstrap.Modal.getInstance(document.getElementById('editEntityModal')).hide();
 };
 
-/* ====================================================================
- * 沉浸式悬浮舱监听 (Selection Bubble Observer)
- * ==================================================================== */
 let currentSelectionText = "", currentSelectionSection = "";
-
 document.addEventListener("DOMContentLoaded", function() {
     renderEntityHighlights();
     const renderTarget = document.getElementById('highlight-render-target'); 
@@ -214,14 +219,12 @@ document.addEventListener("DOMContentLoaded", function() {
         renderTarget.addEventListener('mouseup', function(e) {
             setTimeout(() => {
                 const selection = window.getSelection(); const selectedText = selection.toString().trim();
-                // 若选中有效文本范围，动态计算弹出位置
                 if (selectedText.length > 0 && selectedText.length < 30) {
                     currentSelectionText = selectedText;
                     let targetNode = selection.anchorNode;
                     let sectionBlock = targetNode.nodeType === 3 ? targetNode.parentNode.closest('.section-block') : targetNode.closest('.section-block');
                     currentSelectionSection = sectionBlock ? sectionBlock.dataset.section : "";
                     const rect = selection.getRangeAt(0).getBoundingClientRect();
-                    
                     bubble.style.display = 'flex'; bubble.style.visibility = 'hidden'; 
                     bubble.style.top = (rect.top + window.scrollY - bubble.offsetHeight - 8) + 'px';
                     bubble.style.left = (rect.left + window.scrollX + rect.width / 2 - bubble.offsetWidth / 2) + 'px';
@@ -233,43 +236,25 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
-/**
- * 触发“人工注入新实体”表单装载。
- */
 window.triggerAddEntity = function() {
-    document.getElementById('add-ent-text').value = currentSelectionText; 
-    const sectionSelect = document.getElementById('add-ent-section'); sectionSelect.innerHTML = '';
+    document.getElementById('add-ent-text').value = currentSelectionText; const sectionSelect = document.getElementById('add-ent-section'); sectionSelect.innerHTML = '';
     Object.keys(window.SYSTEM_CONTEXT.emrData).forEach(sec => {
         const opt = document.createElement('option'); opt.value = sec; opt.innerText = sec;
         if (sec === currentSelectionSection) opt.selected = true; sectionSelect.appendChild(opt);
     });
-    new bootstrap.Modal(document.getElementById('addEntityModal')).show(); 
-    document.getElementById('selection-bubble').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('addEntityModal')).show(); document.getElementById('selection-bubble').style.display = 'none';
 };
-
-/**
- * 计算绝对坐标并将新增实体写入全局数据树。
- */
 window.saveNewEntity = function() {
     const text = document.getElementById('add-ent-text').value; const section = document.getElementById('add-ent-section').value;
     const rawText = window.SYSTEM_CONTEXT.emrData[section]; const startIdx = rawText.indexOf(text);
     if (startIdx === -1) return alert("无法定位文本坐标");
-    
     window.SYSTEM_CONTEXT.entitiesData.push({ text: text, type: document.getElementById('add-ent-type').value, polarity: document.getElementById('add-ent-polarity').value, start: startIdx, end: startIdx + text.length, section: section, score: 1.0 });
     renderEntityHighlights(); triggerDynamicCDSS(); bootstrap.Modal.getInstance(document.getElementById('addEntityModal')).hide();
 };
-
-/**
- * 触发主动学习/数据飞轮的纠错表单。
- */
 window.triggerOcrCorrection = function() {
     document.getElementById('ocr-wrong-word').value = currentSelectionText; document.getElementById('ocr-right-word').value = ''; 
     new bootstrap.Modal(document.getElementById('ocrCorrectionModal')).show(); document.getElementById('selection-bubble').style.display = 'none';
 };
-
-/**
- * 发送纠错指令至后端规则字典层。
- */
 function submitOcrCorrection(event) {
     const btn = event.currentTarget; btn.disabled = true;
     fetch('/api/ocr/correct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wrong: document.getElementById('ocr-wrong-word').value, right: document.getElementById('ocr-right-word').value })
@@ -279,24 +264,72 @@ function submitOcrCorrection(event) {
 }
 
 /**
- * 将人工复核干预后的最终数据对象封发落库。
+ * 核心归档拦截网关
  */
 function executeArchiveProtocol() {
-    fetch('/save_report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ "就诊编号": document.getElementById('meta-visit-id').innerText, "患者ID": document.getElementById('meta-patient-id').innerText, "操作行为": "基于微服务流转的最终确诊", "结构化病历": Object.fromEntries(new FormData(document.getElementById('emr-form'))), "提取实体": window.SYSTEM_CONTEXT.entitiesData })
-    }).then(r=>r.json()).then(res => { document.getElementById('save-status-indicator').innerText = res.status === 'success' ? "归档成功" : "入库阻断"; });
+    const allergyInput = document.querySelector('textarea[name="过敏史"]');
+    const chiefComplaintInput = document.querySelector('textarea[name="主诉"]');
+
+    if (allergyInput && allergyInput.value.trim() === '') {
+        alert("⛔ 临床质控阻断：\n【过敏史】为强约束必填项！哪怕在原始病历中缺失，系统也拒绝空值归档。\n若患者明确无过敏史，请医生人工核对后填写“无”或“否认”。");
+        const tabTrigger = new bootstrap.Tab(document.querySelector('#workstationTabs button[data-bs-target="#tab-emr"]'));
+        tabTrigger.show(); 
+        setTimeout(() => {
+            allergyInput.focus();
+            allergyInput.style.boxShadow = "0 0 0 4px rgba(239, 68, 68, 0.4)";
+            allergyInput.style.border = "1px solid #ef4444";
+            setTimeout(() => { allergyInput.style.boxShadow = ""; allergyInput.style.border = ""; }, 3000);
+        }, 300);
+        return; 
+    }
+    if (chiefComplaintInput && chiefComplaintInput.value.trim() === '') {
+        alert("⛔ 临床质控阻断：【主诉】缺失，无法构成完整病历！");
+        return;
+    }
+    
+    const finalDiagnosisText = document.getElementById('final-diagnosis-text').value;
+    const statusIndicator = document.getElementById('save-status-indicator');
+    const spinner = document.getElementById('save-spinner');
+    
+    statusIndicator.innerText = "数据封装与同步中...";
+    statusIndicator.className = "text-primary small fw-bold";
+    spinner.style.display = "inline-block";
+
+    fetch('/save_report', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ 
+            "就诊编号": document.getElementById('meta-visit-id').innerText, 
+            "患者ID": document.getElementById('meta-patient-id').innerText, 
+            "操作行为": "通过质控网关的终态确诊", 
+            "结构化病历": Object.fromEntries(new FormData(document.getElementById('emr-form'))), 
+            "提取实体": window.SYSTEM_CONTEXT.entitiesData,
+            "医生最终诊断": finalDiagnosisText
+        })
+    }).then(r=>r.json()).then(res => { 
+        spinner.style.display = "none";
+        if (res.status === 'success') {
+            statusIndicator.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> 质控通过：已安全入库';
+            statusIndicator.className = "text-success small fw-bold";
+        } else {
+            statusIndicator.innerText = "入库异常";
+            statusIndicator.className = "text-danger small fw-bold";
+        }
+    }).catch(e => {
+        spinner.style.display = "none";
+        statusIndicator.innerText = "网络阻断";
+        statusIndicator.className = "text-danger small fw-bold";
+    });
 }
 
 
 /* ====================================================================
- * 双向同步配置中心与出厂设置引擎 (Global Settings Engine)
+ * 双向同步配置中心与出厂设置引擎
  * ==================================================================== */
 
 let currentGlobalSettings = {};
 let isDevModeActive = false;
 
-/**
- * 侧边栏导航监听与 JSON 双向绑定拦截器。
- */
 document.addEventListener('DOMContentLoaded', function() {
     const tabs = document.querySelectorAll('#settings-tabs button[data-bs-toggle="tab"]');
     const titleEl = document.getElementById('settings-title');
@@ -306,7 +339,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const targetId = event.target.getAttribute('data-bs-target');
             const prevId = event.relatedTarget ? event.relatedTarget.getAttribute('data-bs-target') : null;
 
-            // 拦截：从纯文本 JSON 模式切回 GUI
             if (prevId === '#set-dev') {
                 try {
                     const parsedJson = JSON.parse(document.getElementById('editor-raw-json').value);
@@ -318,7 +350,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     event.preventDefault(); return;
                 }
             } 
-            // 拦截：从 GUI 切入纯文本 JSON 模式
             else if (targetId === '#set-dev') {
                 isDevModeActive = true;
                 const guiData = buildDataFromGui();
@@ -341,9 +372,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-/**
- * 打开设置面板并拉取最新聚合配置。
- */
 window.openSettingsConsole = function() {
     fetch('/api/settings/all')
         .then(response => response.json())
@@ -359,12 +387,6 @@ window.openSettingsConsole = function() {
         }).catch(err => alert("网络异常: " + err));
 };
 
-/**
- * 将获取到的 JSON 数据反序列化至前端各个 GUI 控制组件。
- *
- * Args:
- * data (object): 全局三文件聚合配置字典。
- */
 function populateGuiFromData(data) {
     if (data.global_settings && data.global_settings.system) {
         document.getElementById('gui-device').value = data.global_settings.system.device || 'cpu';
@@ -394,22 +416,19 @@ function populateGuiFromData(data) {
     }
 }
 
-/**
- * 遍历提取 GUI 列表数据并逆向拼装。
- *
- * Returns:
- * object: 图形视图上展现的数据切片合集。
- */
 function buildDataFromGui() {
     const correctionsMap = {};
     document.querySelectorAll('#ocr-gui-container .row').forEach(row => {
-        const wrong = row.querySelector('.ocr-wrong').value.trim(); const right = row.querySelector('.ocr-right').value.trim();
+        const wrong = row.querySelector('.ocr-wrong').value.trim(); 
+        const right = row.querySelector('.ocr-right').value.trim();
         if (wrong && right) correctionsMap[wrong] = right;
     });
 
     const cdssArr = [];
     document.querySelectorAll('#cdss-gui-container .card').forEach(card => {
-        const allergy = card.querySelector('.cdss-allergy').value.trim(); const drugsStr = card.querySelector('.cdss-drugs').value; const warning = card.querySelector('.cdss-warning').value.trim();
+        const allergy = card.querySelector('.cdss-allergy').value.trim(); 
+        const drugsStr = card.querySelector('.cdss-drugs').value; 
+        const warning = card.querySelector('.cdss-warning').value.trim();
         if (allergy && drugsStr) cdssArr.push({ allergy: allergy, drugs: drugsStr.split(',').map(s=>s.trim()).filter(s=>s), warning: warning });
     });
 
@@ -424,29 +443,30 @@ function buildDataFromGui() {
     };
 }
 
-/**
- * 创建一行 OCR 字典编辑卡片。
- */
-window.addOcrGuiRow = function() { document.getElementById('ocr-gui-container').prepend(createOcrRow('', '')); };
+window.addOcrGuiRow = function() { 
+    document.getElementById('ocr-gui-container').prepend(createOcrRow('', '')); 
+};
 function createOcrRow(wrong, right) {
-    const div = document.createElement('div'); div.className = "row mb-2 align-items-center bg-white p-2 rounded shadow-sm border mx-0";
-    div.innerHTML = `<div class="col-5 px-1"><input type="text" class="form-control form-control-sm ocr-wrong" value="${escapeHtml(wrong)}" placeholder="错误片段"></div><div class="col-5 px-1"><input type="text" class="form-control form-control-sm text-primary fw-bold ocr-right" value="${escapeHtml(right)}" placeholder="覆盖为..."></div><div class="col-2 px-1 text-center"><button class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('.row').remove()"><i class="bi bi-trash"></i></button></div>`; return div;
+    const div = document.createElement('div'); 
+    div.className = "row mb-2 align-items-center bg-white p-2 rounded shadow-sm border mx-0";
+    div.innerHTML = `<div class="col-5 px-1"><input type="text" class="form-control form-control-sm ocr-wrong" value="${escapeHtml(wrong)}" placeholder="错误片段"></div><div class="col-5 px-1"><input type="text" class="form-control form-control-sm text-primary fw-bold ocr-right" value="${escapeHtml(right)}" placeholder="覆盖为..."></div><div class="col-2 px-1 text-center"><button class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('.row').remove()"><i class="bi bi-trash"></i></button></div>`; 
+    return div;
 }
 
-/**
- * 创建一张 CDSS 规则注入卡片。
- */
-window.addCdssGuiCard = function() { document.getElementById('cdss-gui-container').prepend(createCdssCard('', '', '')); };
+window.addCdssGuiCard = function() { 
+    document.getElementById('cdss-gui-container').prepend(createCdssCard('', '', '')); 
+};
 function createCdssCard(allergy, drugs, warning) {
-    const div = document.createElement('div'); div.className = "card border mb-3 shadow-sm";
-    div.innerHTML = `<div class="card-header bg-white d-flex justify-content-between align-items-center py-2"><span class="fw-bold text-dark small"><i class="bi bi-diagram-2"></i> 规则簇节点</span><button class="btn btn-sm text-danger border-0 py-0" onclick="this.closest('.card').remove()"><i class="bi bi-x-circle-fill"></i></button></div><div class="card-body p-3 bg-light"><div class="row g-2 mb-2"><div class="col-6"><label class="form-label small text-muted mb-1">过敏原触发词</label><input type="text" class="form-control form-control-sm cdss-allergy" value="${escapeHtml(allergy)}" placeholder="如：青霉素过敏"></div><div class="col-6"><label class="form-label small text-muted mb-1">拦截药物群 (逗号分隔)</label><input type="text" class="form-control form-control-sm text-primary cdss-drugs" value="${escapeHtml(drugs)}" placeholder="如：阿莫西林, 青霉素G"></div></div><div><label class="form-label small text-muted mb-1">红色预警文案 (用 {drug} 代指触发词)</label><input type="text" class="form-control form-control-sm text-danger cdss-warning" value="${escapeHtml(warning)}" placeholder="⚠️ 致命拦截..."></div></div>`; return div;
+    const div = document.createElement('div'); 
+    div.className = "card border mb-3 shadow-sm";
+    div.innerHTML = `<div class="card-header bg-white d-flex justify-content-between align-items-center py-2"><span class="fw-bold text-dark small"><i class="bi bi-diagram-2"></i> 规则簇节点</span><button class="btn btn-sm text-danger border-0 py-0" onclick="this.closest('.card').remove()"><i class="bi bi-x-circle-fill"></i></button></div><div class="card-body p-3 bg-light"><div class="row g-2 mb-2"><div class="col-6"><label class="form-label small text-muted mb-1">过敏原触发词</label><input type="text" class="form-control form-control-sm cdss-allergy" value="${escapeHtml(allergy)}" placeholder="如：青霉素过敏"></div><div class="col-6"><label class="form-label small text-muted mb-1">拦截药物群 (逗号分隔)</label><input type="text" class="form-control form-control-sm text-primary cdss-drugs" value="${escapeHtml(drugs)}" placeholder="如：阿莫西林, 青霉素G"></div></div><div><label class="form-label small text-muted mb-1">红色预警文案 (用 {drug} 代指触发词)</label><input type="text" class="form-control form-control-sm text-danger cdss-warning" value="${escapeHtml(warning)}" placeholder="⚠️ 致命拦截..."></div></div>`; 
+    return div;
 }
 
-/**
- * 发送全量参数保存请求以触发底层热重载引擎。
- */
 window.saveSettingsConsole = function(btn) {
-    const originalHtml = btn.innerHTML; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 烧录中...'; btn.disabled = true;
+    const originalHtml = btn.innerHTML; 
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 烧录中...'; 
+    btn.disabled = true;
 
     try {
         let finalPayload = {};
@@ -467,23 +487,39 @@ window.saveSettingsConsole = function(btn) {
         }
 
         fetch('/api/settings/all', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finalPayload)
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(finalPayload)
         }).then(r => r.json()).then(data => {
             if (data.code === 200) {
                 const msg = document.getElementById('settings-save-msg');
-                msg.style.display = 'inline-block'; setTimeout(() => msg.style.display = 'none', 3000);
-            } else { alert("❌ 热重载失败: " + data.message); }
-        }).catch(err => alert("网络传输异常: " + err)).finally(() => { btn.innerHTML = originalHtml; btn.disabled = false; });
-    } catch (e) { alert("执行终止：底层 JSON 格式解析崩溃。\n明细: " + e.message); btn.innerHTML = originalHtml; btn.disabled = false; }
+                msg.style.display = 'inline-block'; 
+                setTimeout(() => msg.style.display = 'none', 3000);
+            } else { 
+                alert("❌ 热重载失败: " + data.message); 
+            }
+        }).catch(err => alert("网络传输异常: " + err)).finally(() => { 
+            btn.innerHTML = originalHtml; 
+            btn.disabled = false; 
+        });
+    } catch (e) { 
+        alert("执行终止：底层 JSON 格式解析崩溃。\n明细: " + e.message); 
+        btn.innerHTML = originalHtml; 
+        btn.disabled = false; 
+    }
 };
 
-/**
- * 唤起恢复出厂设置微服务。
- */
 window.restoreFactorySettings = function() {
     if (!confirm("⚠️ 高危操作确认：\n这将会清除您在此期间配置的所有自定义数据，并完全还原至出厂默认状态。\n\n确认执行吗？")) return;
-    fetch('/api/settings/restore', { method: 'POST' }).then(r => r.json()).then(data => {
-        if (data.code === 200) { alert(data.message); bootstrap.Modal.getInstance(document.getElementById('settingsConsoleModal')).hide(); } 
-        else { alert("恢复阻断: " + data.message); }
+    
+    fetch('/api/settings/restore', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.code === 200) { 
+            alert(data.message); 
+            bootstrap.Modal.getInstance(document.getElementById('settingsConsoleModal')).hide(); 
+        } else { 
+            alert("恢复阻断: " + data.message); 
+        }
     }).catch(err => alert("网络异常: " + err));
 };

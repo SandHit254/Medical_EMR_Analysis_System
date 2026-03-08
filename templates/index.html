@@ -51,6 +51,27 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+
+      /* 活动输入框高亮指示器 */
+      .active-input-field {
+        border-color: var(--primary-color) !important;
+        box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15) !important;
+        background-color: #f8fafc !important;
+      }
+
+      /* 诊断页面的专属药丸动画 */
+      .diagnosis-chip {
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+      .diagnosis-chip:hover {
+        transform: scale(1.02) translateY(-2px);
+        background-color: #dcfce7 !important;
+        box-shadow: 0 4px 8px rgba(34, 197, 94, 0.15) !important;
+      }
+      .diagnosis-chip:active {
+        transform: scale(0.98);
+      }
     </style>
   </head>
   <body class="container-fluid px-xl-5 pb-5">
@@ -262,27 +283,182 @@
             </div>
 
             <div class="tab-pane fade" id="tab-emr">
-              <form id="emr-form">
-                <div class="row g-4">
-                  {% for key, value in record.get('结构化病历', {}).items() %}
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold text-muted small mb-1"
-                      >{{ key }}</label
-                    >
-                    <textarea
-                      class="form-control bg-white"
-                      name="{{ key }}"
-                      rows="{% if value and value|length > 40 %}3{% else %}1{% endif %}"
-                    >
-{{ value }}</textarea
-                    >
-                  </div>
-                  {% endfor %}
+              <div class="d-flex align-items-center mb-4">
+                <div
+                  class="bg-primary bg-opacity-10 p-2 rounded text-primary me-3"
+                >
+                  <i class="bi bi-ui-checks fs-4"></i>
                 </div>
-              </form>
+                <div>
+                  <h6 class="fw-bold m-0 text-dark">标准电子病历复核</h6>
+                  <span class="text-muted small"
+                    >请先点击左侧的文本框获取焦点，再点击右侧的实体进行一键录入。带
+                    <span class="text-danger fw-bold">*</span> 为必填项。</span
+                  >
+                </div>
+              </div>
+
+              <div class="row g-4 align-items-start">
+                <div class="col-md-8">
+                  <form id="emr-form">
+                    {% set standard_fields = ['姓名', '性别', '年龄', '主诉',
+                    '现病史', '既往史', '过敏史', '体格检查', '辅助检查',
+                    '处理'] %} {% set existing_keys = record.get('结构化病历',
+                    {}).keys() | list %} {% set extra_fields = [] %} {% for k in
+                    existing_keys %} {% if k not in standard_fields %}{% set _ =
+                    extra_fields.append(k) %}{% endif %} {% endfor %}
+
+                    <h6
+                      class="fw-bold text-muted small border-bottom pb-2 mb-3"
+                    >
+                      通用标准结构
+                    </h6>
+                    <div class="row g-3 mb-4">
+                      {% for field in standard_fields %}
+                      <div
+                        class="{% if field in ['姓名', '性别', '年龄'] %}col-md-4{% else %}col-md-12{% endif %}"
+                      >
+                        <label class="form-label fw-bold text-dark small mb-1">
+                          {{ field }} {% if field in ['主诉', '过敏史'] %}<span
+                            class="text-danger ms-1"
+                            >*</span
+                          >{% endif %}
+                        </label>
+                        <textarea
+                          class="form-control bg-white shadow-sm emr-input-target"
+                          name="{{ field }}"
+                          rows="{% if field in ['现病史', '既往史', '处理'] %}3{% else %}1{% endif %}"
+                          style="transition: all 0.3s"
+                        >
+{{ record.get('结构化病历', {}).get(field, '') }}</textarea
+                        >
+                      </div>
+                      {% endfor %}
+                    </div>
+
+                    {% if extra_fields|length > 0 %}
+                    <h6
+                      class="fw-bold text-muted small border-bottom pb-2 mb-3 mt-4"
+                    >
+                      附加识别内容与过往病史补充
+                    </h6>
+                    <div class="row g-3">
+                      {% for field in extra_fields %}
+                      <div class="col-md-12">
+                        <label class="form-label fw-bold text-dark small mb-1"
+                          >{{ field }}</label
+                        >
+                        <textarea
+                          class="form-control bg-white shadow-sm emr-input-target"
+                          name="{{ field }}"
+                          rows="2"
+                          style="transition: all 0.3s"
+                        >
+{{ record.get('结构化病历', {}).get(field, '') }}</textarea
+                        >
+                      </div>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+                  </form>
+                </div>
+
+                <div
+                  class="col-md-4 position-sticky"
+                  style="top: 1.5rem; z-index: 10"
+                >
+                  <div
+                    class="bg-light p-3 border rounded-3 shadow-sm h-100 d-flex flex-column"
+                    style="max-height: 65vh"
+                  >
+                    <div
+                      class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3"
+                    >
+                      <h6 class="fw-bold text-dark m-0">
+                        <i class="bi bi-tags-fill text-primary"></i>
+                        全局实体提取库
+                      </h6>
+                    </div>
+                    <div
+                      class="alert alert-info py-2 px-3 small border-0 shadow-sm"
+                      style="background-color: #e0f2fe; color: #0369a1"
+                    >
+                      <i class="bi bi-cursor-fill"></i>
+                      点击下方实体，自动填入当前选中的左侧输入框。
+                    </div>
+                    <div
+                      id="global-chip-pool"
+                      class="flex-grow-1 hide-scrollbar"
+                      style="overflow-y: auto"
+                    ></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="tab-pane fade" id="tab-diagnosis">
+              <div class="d-flex align-items-center mb-4">
+                <div
+                  class="bg-success bg-opacity-10 p-2 rounded text-success me-3"
+                >
+                  <i class="bi bi-clipboard2-pulse fs-4"></i>
+                </div>
+                <div>
+                  <h6 class="fw-bold m-0 text-dark">最终诊断与签名归档</h6>
+                  <span class="text-muted small"
+                    >系统已生成智能诊断辅诊参考，点击绿色胶囊即可一键采纳至诊断意见框。</span
+                  >
+                </div>
+              </div>
+
+              {% if record and record.get('智能诊断核心问题') %}
+              <div class="mb-4 p-3 bg-light border rounded-3 shadow-sm">
+                <div class="text-muted small fw-bold mb-3">
+                  <i class="bi bi-robot text-success"></i> AI 智能辅诊摘要库：
+                </div>
+                <div>
+                  {% for issue in record.get('智能诊断核心问题') %}
+                  <span
+                    class="badge rounded-pill bg-white text-success border border-success me-2 mb-2 px-3 py-2 diagnosis-chip shadow-sm"
+                    onclick="insertDiagnosis('{{ issue }}')"
+                  >
+                    <i class="bi bi-plus-circle me-1"></i>{{ issue }}
+                  </span>
+                  {% endfor %}
+                </div>
+              </div>
+              {% else %}
+              <div
+                class="alert bg-light border text-muted shadow-sm mb-4 text-center py-3"
+              >
+                <i class="bi bi-inboxes fs-5 d-block mb-1"></i>
+                <span class="small fw-bold"
+                  >引擎未能生成有效的诊断汇总信息，请人工核查。</span
+                >
+              </div>
+              {% endif %}
+
+              <div
+                class="mb-4 p-4 bg-white rounded-3 shadow-sm border"
+                style="border-color: #e5e5ea !important"
+              >
+                <label class="fw-bold text-dark mb-2"
+                  ><i class="bi bi-pen"></i> 医生最终诊断意见与结论
+                  <span class="text-danger">*</span></label
+                >
+                <textarea
+                  id="final-diagnosis-text"
+                  class="form-control bg-light"
+                  rows="6"
+                  style="
+                    font-size: 1.05rem;
+                    line-height: 1.8;
+                    transition: background-color 0.3s;
+                  "
+                  placeholder="请点击上方绿色胶囊填入草稿，或在此处手动输入诊断结论..."
+                ></textarea>
+              </div>
+
               <div
                 class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mt-4"
               >
@@ -301,7 +477,7 @@
                 </div>
                 <button
                   type="button"
-                  class="btn btn-primary px-4"
+                  class="btn btn-primary px-4 shadow-sm"
                   onclick="executeArchiveProtocol()"
                 >
                   <i class="bi bi-check2-circle me-1"></i> 确认终态并入库
@@ -537,7 +713,6 @@
                 </li>
               </ul>
             </div>
-
             <div
               class="d-flex flex-column flex-grow-1 bg-white"
               style="width: 0"
@@ -552,7 +727,6 @@
                   data-bs-dismiss="modal"
                 ></button>
               </div>
-
               <div
                 class="flex-grow-1 p-4 hide-scrollbar"
                 style="overflow-y: auto; background-color: #fbfbfd"
@@ -570,8 +744,7 @@
                           <div class="mb-3">
                             <label class="form-label small text-muted"
                               >张量运算设备</label
-                            >
-                            <select
+                            ><select
                               class="form-select form-select-sm"
                               id="gui-device"
                             >
@@ -582,8 +755,7 @@
                           <div class="mb-3">
                             <label class="form-label small text-muted"
                               >NER 置信度阈值</label
-                            >
-                            <input
+                            ><input
                               type="number"
                               class="form-control form-control-sm"
                               id="gui-threshold"
@@ -619,8 +791,7 @@
                           <div class="mb-3">
                             <label class="form-label small text-muted"
                               >极性传导与否定词</label
-                            >
-                            <input
+                            ><input
                               type="text"
                               class="form-control form-control-sm"
                               id="gui-negation"
@@ -630,8 +801,7 @@
                           <div class="mb-0">
                             <label class="form-label small text-muted"
                               >病历段落截断锚点</label
-                            >
-                            <textarea
+                            ><textarea
                               class="form-control form-control-sm"
                               id="gui-sections"
                               rows="4"
@@ -642,15 +812,13 @@
                       </div>
                     </div>
                   </div>
-
                   <div class="tab-pane fade" id="set-ocr">
                     <div
                       class="d-flex justify-content-between align-items-center mb-3"
                     >
                       <span class="text-muted small"
                         >底层清洗策略，识别到左侧错词将强制替换为右侧正词。</span
-                      >
-                      <button
+                      ><button
                         class="btn btn-sm btn-outline-primary fw-bold"
                         onclick="addOcrGuiRow()"
                       >
@@ -664,15 +832,13 @@
                     </div>
                     <div id="ocr-gui-container"></div>
                   </div>
-
                   <div class="tab-pane fade" id="set-cdss">
                     <div
                       class="d-flex justify-content-between align-items-center mb-3"
                     >
                       <span class="text-muted small"
                         >临床辅助决策安全拦截规则矩阵。</span
-                      >
-                      <button
+                      ><button
                         class="btn btn-sm btn-outline-success fw-bold"
                         onclick="addCdssGuiCard()"
                       >
@@ -681,16 +847,13 @@
                     </div>
                     <div id="cdss-gui-container"></div>
                   </div>
-
                   <div class="tab-pane fade h-100" id="set-dev">
                     <div class="d-flex flex-column h-100">
                       <div
                         class="alert alert-warning py-2 small border-0 d-flex align-items-center mb-2"
                       >
-                        <i
-                          class="bi bi-exclamation-triangle-fill fs-5 me-2"
-                        ></i>
-                        <span
+                        <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i
+                        ><span
                           ><strong>全局数据映射：</strong>
                           此处实时同步了所有的配置结构。保存时将以此处文本框内容为准。</span
                         >
@@ -709,7 +872,6 @@
                   </div>
                 </div>
               </div>
-
               <div
                 class="px-4 py-3 border-top bg-white d-flex justify-content-between align-items-center z-1"
               >
@@ -728,15 +890,13 @@
                     id="settings-save-msg"
                     style="display: none"
                     ><i class="bi bi-check-circle-fill"></i> 热重载已生效</span
-                  >
-                  <button
+                  ><button
                     type="button"
                     class="btn btn-light border px-4"
                     data-bs-dismiss="modal"
                   >
-                    取消
-                  </button>
-                  <button
+                    取消</button
+                  ><button
                     type="button"
                     class="btn btn-primary px-4 fw-bold shadow-sm"
                     onclick="saveSettingsConsole(this)"
