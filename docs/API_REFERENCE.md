@@ -113,12 +113,14 @@
 **文件功能**：持久层与文件控制模块。
 
 ### 类：`StorageEngine`
-* **功能**：控制底层文件系统，对系统管线的执行结果进行统一归档与多节点快照落盘。
+* **功能**：控制底层文件系统，基于**绝对路径动态寻址**，确保跨目录调用的 I/O 安全。涵盖快照落盘、CDSS 规则碰撞拦截，以及 EMPI 历史档案检索。
 * **方法接口**：
-    * `save_visit_snapshot(self, patient_id: str, image_path: str, raw_ocr: str, chunks: list, chunked_results: list, sections: dict, aggregated_issues: list) -> str`
-        * **功能**：持久化单次就诊的全量业务数据。并在此处触发 CDSS (临床决策支持系统) 的过敏冲突拦截逻辑。
-        * **输入**：各项流转节点的中间态数据对象（图径、OCR 文本、实体列表、段落字典、**智能诊断草稿列表**等）。
-        * **输出**：(str) - 生成的就诊批次存储根目录路径（如 `output/patient_records/PID_XXX/V_XXX`）。
+    * `get_all_patients_info(self) -> list`
+        * **新增功能**：EMPI 接口，遍历解析存储库，返回包含 `id`, `name`, `gender`, `age` 的历史患者字典列表。
+    * `get_patient_history(self, patient_id: str) -> dict`
+        * **新增功能**：EMPI 接口，溯源目标患者最近一次的 `06_human_verified.json`，提取并返回其人口统计学信息与过敏史。
+    * `save_visit_snapshot(self, ...) -> str`
+        * **强化功能**：执行双向 CDSS 拦截检验。不仅比对模型提取的实体字典，还会**全局检索前端表单的手写纯文本**，确保不漏掉任何未被 AI 识别的禁忌药物输入。
 
 ---
 
@@ -126,10 +128,9 @@
 **文件功能**：系统的“中央处理器”与管线编排总线。负责串联底层各个互相独立的 AI 算子和数据处理引擎，构建出一条完整的有向无环图（DAG）流水线。
 
 ### 核心函数接口
-* `run_medical_pipeline(image_path: str) -> str`
-    * **功能**：批处理全链路调度（Batch Processing）。涵盖图像感知、清洗、截断、长文切片、实体提取、极性传导、**阳性指征聚合总结（智能辅诊）** 与持久化快照全流程。
-    * **输入**：`image_path` (str) - 前端上传的医疗影像绝对物理路径。
-    * **输出**：(str) - 存档目录路径。
+* `run_medical_pipeline(image_path: str, patient_id: str = None, patient_info: dict = None) -> str`
+    * **功能**：批处理全链路调度。在 OCR 清洗后、NER 识别前，执行 **EMPI 历史档案继承机制**。将入参的 `patient_info` 及历史过敏史强制拼接入当前的病历段落字典中，补全上下文。
+    * **输入**：`image_path` (物理图径), `patient_id` (选填，患者流水号), `patient_info` (选填，包含姓名、性别、年龄的基础字典)。
 * `run_partial_ner(section_name: str, content: str) -> list`
     * **功能**：局部微服务调度（Microservice Reload）。仅对指定的一段文本执行短句切分、实体推理与极性传导。
 
@@ -137,6 +138,11 @@
 
 ## 10. `web.py` (Flask 宿主与微服务路由)
 **文件功能**：Web 容器层。在环境变量级别强制切断 HuggingFace 外网连接以保证本地私有化部署。向上提供 RESTful API，向下驱动 AI 算子。
+
+* `GET /api/patients` & `GET /api/patients/new`
+    * **功能**：EMPI 网关患者主索引微服务。分别用于下发格式化的历史患者列表树，以及使用 UUID 算法生成全新的防篡改患者流水号。
+* 动态模板上下文注入 (`get_emr_config`)
+    * **功能**：在 `/` 与 `/analyze` 路由响应中，拦截读取 `rules.json`，并将动态表单配置 (`standard_fields` 和 `required_fields`) 注入 Jinja2 渲染引擎。
 
 ### 核心路由接口 (Routes)
 * `POST /analyze`
@@ -186,6 +192,12 @@
     * `triggerAddEntity() / openEntityEditor()`：实体生命周期干预（增、删、改、极性翻转）。
 * **全局配置双向同步器**：
     * `buildDataFromGui()` / `populateGuiFromData()`：完成 GUI 表单与 JSON 对象的序列化/反序列化映射。拦截 `show.bs.tab` 事件实现开发模式与傻瓜模式的无缝状态同步。
+* **EMPI 前置网关与锁屏机制 (Identity Lock)**：
+    * `openEmpiGateway()` / `setPatientContext()`：初始化系统时阻塞图片上传表单（`e.preventDefault()`），强制唤起模态框确认身份。并接管 DOM 更新顶部状态横幅。
+* **输入框实时侦听与动态 CDSS (Real-time Observation)**：
+    * 为所有带有 `.emr-input-target` 类的文本框绑定 `input` 事件，医生打字时即刻更新 `window.SYSTEM_CONTEXT` 内存树，并无延迟高频触发 `triggerDynamicCDSS()`。
+* **动态质控巡检 (Dynamic Quality Gate)**：
+* `executeArchiveProtocol()`：放弃写死的字段名，改为基于 `querySelectorAll('textarea[data-required="true"]')` 实施全页面动态循环检视，遇空值直接拦截。
 
 ---
 
