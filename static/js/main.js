@@ -7,10 +7,131 @@ function hideLoading() { document.getElementById('loading-overlay').style.displa
 function escapeHtml(text) { if (!text) return ""; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
 /* ====================================================================
+ * EMPI 患者主索引前置网关逻辑重构
+ * ==================================================================== */
+document.addEventListener("DOMContentLoaded", function() {
+    const uploadForm = document.getElementById('upload-form');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            const patientIdInput = document.getElementById('upload-patient-id');
+            // 如果没选人就硬点提交，强行拦截并弹窗
+            if (!patientIdInput.value.trim()) {
+                e.preventDefault(); 
+                openEmpiGateway();
+            } else {
+                showLoading('系统管线流转中...');
+            }
+        });
+    }
+
+    // 【核心修复】：为所有的输入框绑定实时输入事件，使得手工输入的文本也能立即触发 CDSS 碰撞校验
+    document.querySelectorAll('.emr-input-target').forEach(el => {
+        el.addEventListener('input', function() {
+            if (window.SYSTEM_CONTEXT && window.SYSTEM_CONTEXT.emrData) {
+                window.SYSTEM_CONTEXT.emrData[this.name] = this.value;
+                triggerDynamicCDSS();
+            }
+        });
+    });
+});
+
+window.openEmpiGateway = function() {
+    fetch('/api/patients').then(r=>r.json()).then(data => {
+        const select = document.getElementById('empi-patient-select');
+        select.innerHTML = '';
+        if(data.patients && data.patients.length > 0) {
+            data.patients.forEach(p => {
+                select.innerHTML += `<option value="${p.id}" data-name="${p.name}" data-gender="${p.gender}" data-age="${p.age}">${p.id} - ${p.name} (${p.gender}, ${p.age})</option>`;
+            });
+            select.disabled = false;
+        } else {
+            select.innerHTML = '<option value="">(空) 档案库中暂无历史患者，请建档</option>';
+            select.disabled = true;
+        }
+        new bootstrap.Modal(document.getElementById('empiModal')).show();
+    });
+};
+
+window.selectPatient = function() {
+    const select = document.getElementById('empi-patient-select');
+    const pid = select.value;
+    if(!pid) return alert('请选择有效的患者标识符，或切换右侧 Tab 建立新患者！');
+    
+    // 【修复】：选老患者时，清除掉新患者表单中可能残留的数据
+    document.getElementById('upload-patient-name').value = '';
+    document.getElementById('upload-patient-gender').value = '';
+    document.getElementById('upload-patient-age').value = '';
+
+    const opt = select.options[select.selectedIndex];
+    const info = { name: opt.dataset.name, gender: opt.dataset.gender, age: opt.dataset.age };
+    setPatientContext(pid, info);
+};
+
+window.createNewPatient = function() {
+    const name = document.getElementById('empi-new-name').value.trim();
+    const gender = document.getElementById('empi-new-gender').value;
+    const age = document.getElementById('empi-new-age').value.trim();
+    
+    fetch('/api/patients/new').then(r=>r.json()).then(data => {
+        setPatientContext(data.patient_id, { name: name || '待提取', gender: gender || '-', age: age || '-' });
+        document.getElementById('upload-patient-name').value = name;
+        document.getElementById('upload-patient-gender').value = gender;
+        document.getElementById('upload-patient-age').value = age;
+    });
+};
+
+function setPatientContext(pid, info) {
+    document.getElementById('current-patient-id-display').innerText = pid;
+    document.getElementById('upload-patient-id').value = pid;
+    
+    const msg = document.getElementById('upload-lock-msg');
+    if (msg) msg.style.display = 'none';
+    
+    const dynBanner = document.getElementById('dynamic-patient-banner');
+    if(dynBanner) {
+        dynBanner.style.setProperty('display', 'flex', 'important');
+        document.getElementById('dyn-banner-name').innerText = info.name;
+        document.getElementById('dyn-banner-gender').innerText = info.gender;
+        document.getElementById('dyn-banner-age').innerText = info.age;
+        document.getElementById('dyn-banner-pid').innerText = pid;
+    }
+    
+    // 【核心修复】：闲置界面华丽变身为“就绪状态”
+    const idleStateView = document.getElementById('idle-state-view');
+    if (idleStateView) {
+        idleStateView.className = "glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-success bg-opacity-10";
+        idleStateView.style.borderColor = "#86efac";
+        
+        const idleIcon = document.getElementById('idle-icon');
+        if(idleIcon) {
+            idleIcon.className = "bi bi-clipboard2-check-fill text-success opacity-75";
+        }
+        
+        const idleTitle = document.getElementById('idle-title');
+        if(idleTitle) {
+            idleTitle.innerText = "患者档案已关联，工作站就绪";
+            idleTitle.className = "fw-bold text-success mb-2 mt-3";
+        }
+        
+        const idleDesc = document.getElementById('idle-desc');
+        if(idleDesc) {
+            idleDesc.innerHTML = `已锁定患者 <strong>${pid}</strong>，请在左侧上传病历影像启动分析管线。`;
+            idleDesc.className = "text-success opacity-75 mx-auto";
+        }
+    }
+    
+    const modalEl = document.getElementById('empiModal');
+    if (modalEl) {
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+    }
+}
+
+
+/* ====================================================================
  * 表单焦点状态追踪 (Input Focus Tracker)
  * ==================================================================== */
 let activeInputField = null;
-
 document.addEventListener('focusin', function(e) {
     if (e.target && e.target.classList.contains('emr-input-target')) {
         if (activeInputField) activeInputField.classList.remove('active-input-field');
@@ -39,7 +160,6 @@ function renderEntityHighlights() {
             if (ent.start >= cursor) {
                 htmlStream += escapeHtml(rawText.substring(cursor, ent.start));
                 const safeClass = ent.type.replace(/\//g, '_');
-                
                 const isNegative = ent.polarity === '阴性';
                 const polarityStyle = isNegative ? 'opacity: 0.5; text-decoration: line-through;' : '';
                 const polarityBadge = isNegative ? '<span style="color:#ef4444;font-size:0.6rem;margin-left:4px;">(排除)</span>' : '';
@@ -67,9 +187,6 @@ function renderEntityHighlights() {
     renderEntityChips();
 }
 
-/**
- * 右侧栏：全局实体弹药库 (Entity Chips)
- */
 function renderEntityChips() {
     const context = window.SYSTEM_CONTEXT;
     const pool = document.getElementById('global-chip-pool');
@@ -79,7 +196,6 @@ function renderEntityChips() {
     context.entitiesData.forEach(ent => {
         const safeClass = ent.type.replace(/\//g, '_');
         const isNegative = ent.polarity === '阴性';
-        
         const chip = document.createElement('span');
         chip.className = `badge rounded-pill me-2 mb-2 px-3 py-2 entity-chip type-${safeClass}`;
         
@@ -98,7 +214,6 @@ function renderEntityChips() {
                 alert("👉 录入提示：\n请先在左侧表单中点击选中你要填写的框（如'主诉'或'过敏史'），然后再点击此处标签填入。");
                 return;
             }
-            
             const currentVal = activeInputField.value.trim();
             let insertText = isNegative ? `无${ent.text}` : ent.text;
             
@@ -107,16 +222,14 @@ function renderEntityChips() {
             } else {
                 activeInputField.value = currentVal + insertText;
             }
-            
             window.SYSTEM_CONTEXT.emrData[activeInputField.name] = activeInputField.value;
+            // 【核心修复】：点击药丸填入数据后，立刻触发 CDSS 拦截预警
+            triggerDynamicCDSS();
         };
         pool.appendChild(chip);
     });
 }
 
-/**
- * 诊断意见区：点击 AI 预填摘要药丸，追加至最终诊断文本框。
- */
 window.insertDiagnosis = function(text) {
     const textarea = document.getElementById('final-diagnosis-text');
     if (textarea) {
@@ -126,8 +239,6 @@ window.insertDiagnosis = function(text) {
         } else {
             textarea.value = currentVal + text;
         }
-        
-        // 视觉交互反馈 (浅绿色闪烁)
         textarea.style.backgroundColor = '#dcfce7'; 
         setTimeout(() => textarea.style.backgroundColor = '#f8f9fa', 300);
     }
@@ -212,6 +323,7 @@ window.deleteEntity = function() {
 
 let currentSelectionText = "", currentSelectionSection = "";
 document.addEventListener("DOMContentLoaded", function() {
+    if(!document.getElementById('highlight-render-target')) return;
     renderEntityHighlights();
     const renderTarget = document.getElementById('highlight-render-target'); 
     const bubble = document.getElementById('selection-bubble');
@@ -263,28 +375,26 @@ function submitOcrCorrection(event) {
     }).finally(() => btn.disabled = false);
 }
 
-/**
- * 核心归档拦截网关
- */
 function executeArchiveProtocol() {
-    const allergyInput = document.querySelector('textarea[name="过敏史"]');
-    const chiefComplaintInput = document.querySelector('textarea[name="主诉"]');
-
-    if (allergyInput && allergyInput.value.trim() === '') {
-        alert("⛔ 临床质控阻断：\n【过敏史】为强约束必填项！哪怕在原始病历中缺失，系统也拒绝空值归档。\n若患者明确无过敏史，请医生人工核对后填写“无”或“否认”。");
-        const tabTrigger = new bootstrap.Tab(document.querySelector('#workstationTabs button[data-bs-target="#tab-emr"]'));
-        tabTrigger.show(); 
-        setTimeout(() => {
-            allergyInput.focus();
-            allergyInput.style.boxShadow = "0 0 0 4px rgba(239, 68, 68, 0.4)";
-            allergyInput.style.border = "1px solid #ef4444";
-            setTimeout(() => { allergyInput.style.boxShadow = ""; allergyInput.style.border = ""; }, 3000);
-        }, 300);
-        return; 
-    }
-    if (chiefComplaintInput && chiefComplaintInput.value.trim() === '') {
-        alert("⛔ 临床质控阻断：【主诉】缺失，无法构成完整病历！");
-        return;
+    const requiredInputs = document.querySelectorAll('textarea[data-required="true"]');
+    
+    for (let i = 0; i < requiredInputs.length; i++) {
+        const input = requiredInputs[i];
+        if (input.value.trim() === '') {
+            const fieldName = input.getAttribute('name');
+            alert(`⛔ 临床质控阻断：\n【${fieldName}】为强约束必填项！哪怕在原始病历中缺失，系统也拒绝空值归档。\n若患者未提供，请医生核对后手动填写“无”、“未见”或“未提供”。`);
+            
+            const tabTrigger = new bootstrap.Tab(document.querySelector('#workstationTabs button[data-bs-target="#tab-emr"]'));
+            tabTrigger.show(); 
+            
+            setTimeout(() => {
+                input.focus();
+                input.style.boxShadow = "0 0 0 4px rgba(239, 68, 68, 0.4)";
+                input.style.border = "1px solid #ef4444";
+                setTimeout(() => { input.style.boxShadow = ""; input.style.border = ""; }, 3000);
+            }, 300);
+            return; 
+        }
     }
     
     const finalDiagnosisText = document.getElementById('final-diagnosis-text').value;
@@ -322,11 +432,9 @@ function executeArchiveProtocol() {
     });
 }
 
-
 /* ====================================================================
  * 双向同步配置中心与出厂设置引擎
  * ==================================================================== */
-
 let currentGlobalSettings = {};
 let isDevModeActive = false;
 
@@ -362,7 +470,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentGlobalSettings.rules.rules.negation_words = guiData.negation_words;
                     currentGlobalSettings.rules.rules.cdss_rules = guiData.cdss_rules;
                 }
-                if(currentGlobalSettings.rules) currentGlobalSettings.rules.corrections = guiData.corrections;
+                if(currentGlobalSettings.rules) {
+                    currentGlobalSettings.rules.corrections = guiData.corrections;
+                    currentGlobalSettings.rules.emr_structure = guiData.emr_structure;
+                }
 
                 document.getElementById('editor-raw-json').value = JSON.stringify(currentGlobalSettings, null, 4);
                 titleEl.innerText = "开发者底层核心"; return;
@@ -409,6 +520,14 @@ function populateGuiFromData(data) {
             });
         }
         
+        if (data.rules.emr_structure) {
+            document.getElementById('gui-emr-standard').value = (data.rules.emr_structure.standard_fields || []).join(', ');
+            document.getElementById('gui-emr-required').value = (data.rules.emr_structure.required_fields || []).join(', ');
+        } else {
+            document.getElementById('gui-emr-standard').value = "姓名, 性别, 年龄, 主诉, 现病史, 既往史, 过敏史, 体格检查, 辅助检查, 初步诊断, 处理";
+            document.getElementById('gui-emr-required').value = "姓名, 性别, 年龄, 主诉, 过敏史, 初步诊断";
+        }
+        
         const ocrContainer = document.getElementById('ocr-gui-container');
         ocrContainer.innerHTML = '';
         const corrections = data.rules.corrections || {};
@@ -439,7 +558,11 @@ function buildDataFromGui() {
         section_patterns: document.getElementById('gui-sections').value.split(',').map(s=>s.trim()).filter(s=>s),
         negation_words: document.getElementById('gui-negation').value.split(',').map(s=>s.trim()).filter(s=>s),
         corrections: correctionsMap,
-        cdss_rules: cdssArr
+        cdss_rules: cdssArr,
+        emr_structure: {
+            standard_fields: document.getElementById('gui-emr-standard').value.split(',').map(s=>s.trim()).filter(s=>s),
+            required_fields: document.getElementById('gui-emr-required').value.split(',').map(s=>s.trim()).filter(s=>s)
+        }
     };
 }
 
@@ -482,7 +605,10 @@ window.saveSettingsConsole = function(btn) {
                 currentGlobalSettings.rules.rules.negation_words = guiData.negation_words;
                 currentGlobalSettings.rules.rules.cdss_rules = guiData.cdss_rules;
             }
-            if(currentGlobalSettings.rules) currentGlobalSettings.rules.corrections = guiData.corrections;
+            if(currentGlobalSettings.rules) {
+                currentGlobalSettings.rules.corrections = guiData.corrections;
+                currentGlobalSettings.rules.emr_structure = guiData.emr_structure;
+            }
             finalPayload = currentGlobalSettings;
         }
 

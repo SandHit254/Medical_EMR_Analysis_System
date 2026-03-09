@@ -51,15 +51,11 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
-
-      /* 活动输入框高亮指示器 */
       .active-input-field {
         border-color: var(--primary-color) !important;
         box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15) !important;
         background-color: #f8fafc !important;
       }
-
-      /* 诊断页面的专属药丸动画 */
       .diagnosis-chip {
         cursor: pointer;
         transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -125,16 +121,68 @@
 
     <div class="row g-4 justify-content-center">
       <div class="col-xl-3 col-lg-4">
-        <div class="glass-card p-4 mb-4 shadow-sm border rounded">
+        <div class="glass-card p-3 mb-4 shadow-sm border rounded bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="fw-bold text-dark m-0">
+                <i class="bi bi-person-bounding-box text-primary"></i> EMPI
+                身份网关
+              </h6>
+              <span
+                class="fw-bold fs-6 text-primary"
+                id="current-patient-id-display"
+                >{% if record %}{{ record.get('患者ID') }}{% else %}未确立身份{%
+                endif %}</span
+              >
+            </div>
+            {% if not record %}
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              onclick="openEmpiGateway()"
+            >
+              <i class="bi bi-arrow-left-right"></i> 确立/切换
+            </button>
+            {% endif %}
+          </div>
+        </div>
+
+        <div
+          class="glass-card p-4 mb-4 shadow-sm border rounded position-relative"
+        >
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-cloud-arrow-up"></i> 影像采集节点
           </h6>
           <form
+            id="upload-form"
             action="/analyze"
             method="post"
             enctype="multipart/form-data"
-            onsubmit="showLoading('系统管线流转中...')"
           >
+            <input
+              type="hidden"
+              name="patient_id"
+              id="upload-patient-id"
+              value="{% if record %}{{ record.get('患者ID') }}{% endif %}"
+            />
+            <input
+              type="hidden"
+              name="patient_name"
+              id="upload-patient-name"
+              value=""
+            />
+            <input
+              type="hidden"
+              name="patient_gender"
+              id="upload-patient-gender"
+              value=""
+            />
+            <input
+              type="hidden"
+              name="patient_age"
+              id="upload-patient-age"
+              value=""
+            />
+
             <div class="mb-3">
               <input
                 class="form-control form-control-lg"
@@ -145,9 +193,22 @@
                 style="font-size: 0.9rem"
               />
             </div>
-            <button type="submit" class="btn btn-primary w-100">
+            <button
+              type="submit"
+              id="upload-submit-btn"
+              class="btn btn-primary w-100 fw-bold"
+            >
               <i class="bi bi-lightning-charge"></i> 启动分析流
             </button>
+            {% if not record %}
+            <div
+              id="upload-lock-msg"
+              class="text-warning small mt-2 text-center"
+            >
+              <i class="bi bi-info-circle-fill"></i>
+              点击启动前请选择患者
+            </div>
+            {% endif %}
           </form>
         </div>
 
@@ -160,7 +221,7 @@
           ><br />{{ error }}
         </div>
         {% endif %} {% if record %}
-        <div class="glass-card p-4 shadow-sm border rounded">
+        <div class="glass-card p-4 mb-4 shadow-sm border rounded">
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-hdd-network"></i> 归档元数据
           </h6>
@@ -179,11 +240,65 @@
             >
           </div>
         </div>
+
+        <div class="glass-card p-3 shadow-sm border rounded text-center">
+          <a href="/" class="btn btn-outline-danger w-100 fw-bold"
+            ><i class="bi bi-door-closed"></i> 结束接诊 / 重启工作台</a
+          >
+        </div>
         {% endif %}
       </div>
 
-      <div class="col-xl-9 col-lg-8">
+      <div class="col-xl-9 col-lg-8 d-flex flex-column">
         {% if record %}
+        <div
+          class="alert shadow-sm border mb-3 d-flex justify-content-between align-items-center bg-white rounded"
+        >
+          <div>
+            <span class="badge bg-primary me-2 px-2 py-1"
+              ><i class="bi bi-person-fill"></i> 当前患者</span
+            >
+            <strong class="fs-5 me-3"
+              >{{ record.get('结构化病历', {}).get('姓名', '未知') }}</strong
+            >
+            <span class="text-muted small me-3"
+              ><i class="bi bi-gender-ambiguous"></i> {{
+              record.get('结构化病历', {}).get('性别', '-') }}</span
+            >
+            <span class="text-muted small me-3"
+              ><i class="bi bi-calendar-event"></i> {{ record.get('结构化病历',
+              {}).get('年龄', '-') }}</span
+            >
+          </div>
+          <div class="text-muted small">
+            <i class="bi bi-upc-scan"></i> {{ record.get('患者ID') }}
+          </div>
+        </div>
+        {% else %}
+        <div
+          id="dynamic-patient-banner"
+          class="alert shadow-sm border mb-3 justify-content-between align-items-center bg-white rounded"
+          style="display: none !important"
+        >
+          <div>
+            <span class="badge bg-primary me-2 px-2 py-1"
+              ><i class="bi bi-person-fill"></i> 待处理患者</span
+            >
+            <strong id="dyn-banner-name" class="fs-5 me-3"></strong>
+            <span class="text-muted small me-3"
+              ><i class="bi bi-gender-ambiguous"></i>
+              <span id="dyn-banner-gender"></span
+            ></span>
+            <span class="text-muted small me-3"
+              ><i class="bi bi-calendar-event"></i>
+              <span id="dyn-banner-age"></span
+            ></span>
+          </div>
+          <div class="text-muted small">
+            <i class="bi bi-upc-scan"></i> <span id="dyn-banner-pid"></span>
+          </div>
+        </div>
+        {% endif %} {% if record %}
         <div id="cdss-alert-container">
           {% if record.get('CDSS预警') %}
           <div
@@ -213,7 +328,7 @@
         </div>
 
         <div
-          class="glass-card h-100 d-flex flex-column shadow-sm border rounded"
+          class="glass-card flex-grow-1 d-flex flex-column shadow-sm border rounded"
         >
           <div class="p-3 pb-0">
             <ul class="nav nav-tabs" id="workstationTabs">
@@ -292,20 +407,19 @@
                 <div>
                   <h6 class="fw-bold m-0 text-dark">标准电子病历复核</h6>
                   <span class="text-muted small"
-                    >请先点击左侧的文本框获取焦点，再点击右侧的实体进行一键录入。带
+                    >请先点击左侧的文本框获取焦点，再点击右侧弹药库的实体进行一键录入。带
                     <span class="text-danger fw-bold">*</span> 为必填项。</span
                   >
                 </div>
               </div>
-
               <div class="row g-4 align-items-start">
                 <div class="col-md-8">
                   <form id="emr-form">
-                    {% set standard_fields = ['姓名', '性别', '年龄', '主诉',
-                    '现病史', '既往史', '过敏史', '体格检查', '辅助检查',
-                    '处理'] %} {% set existing_keys = record.get('结构化病历',
-                    {}).keys() | list %} {% set extra_fields = [] %} {% for k in
-                    existing_keys %} {% if k not in standard_fields %}{% set _ =
+                    {% set standard_fields = emr_config.standard_fields %} {%
+                    set req_fields = emr_config.required_fields %} {% set
+                    existing_keys = record.get('结构化病历', {}).keys() | list
+                    %} {% set extra_fields = [] %} {% for k in existing_keys %}
+                    {% if k not in standard_fields %}{% set _ =
                     extra_fields.append(k) %}{% endif %} {% endfor %}
 
                     <h6
@@ -319,14 +433,24 @@
                         class="{% if field in ['姓名', '性别', '年龄'] %}col-md-4{% else %}col-md-12{% endif %}"
                       >
                         <label class="form-label fw-bold text-dark small mb-1">
-                          {{ field }} {% if field in ['主诉', '过敏史'] %}<span
+                          {{ field }} {% if field in req_fields %}<span
                             class="text-danger ms-1"
+                            title="质控必填项"
                             >*</span
                           >{% endif %}
                         </label>
                         <textarea
                           class="form-control bg-white shadow-sm emr-input-target"
                           name="{{ field }}"
+                          {%
+                          if
+                          field
+                          in
+                          req_fields
+                          %}data-required="true"
+                          {%
+                          endif
+                          %}
                           rows="{% if field in ['现病史', '既往史', '处理'] %}3{% else %}1{% endif %}"
                           style="transition: all 0.3s"
                         >
@@ -431,8 +555,8 @@
               <div
                 class="alert bg-light border text-muted shadow-sm mb-4 text-center py-3"
               >
-                <i class="bi bi-inboxes fs-5 d-block mb-1"></i>
-                <span class="small fw-bold"
+                <i class="bi bi-inboxes fs-5 d-block mb-1"></i
+                ><span class="small fw-bold"
                   >引擎未能生成有效的诊断汇总信息，请人工核查。</span
                 >
               </div>
@@ -488,15 +612,20 @@
         </div>
         {% else %}
         <div
+          id="idle-state-view"
           class="glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded"
+          style="transition: all 0.4s"
         >
           <i
-            class="bi bi-cpu text-primary opacity-25"
-            style="font-size: 5rem"
+            id="idle-icon"
+            class="bi bi-person-badge text-primary opacity-25"
+            style="font-size: 5rem; transition: all 0.4s"
           ></i>
-          <h4 class="fw-bold text-dark mb-2 mt-3">引擎挂起中</h4>
-          <p class="text-muted mx-auto">
-            请于左侧控制台上传医疗影像以激活神经感知与逻辑推理模块
+          <h4 id="idle-title" class="fw-bold text-dark mb-2 mt-3">
+            等待指派患者
+          </h4>
+          <p id="idle-desc" class="text-muted mx-auto">
+            系统闲置中，请先在左侧建立患者身份网关连接
           </p>
         </div>
         {% endif %}
@@ -543,8 +672,9 @@
                 class="btn btn-outline-secondary w-50"
                 onclick="saveOcrText(false)"
               >
-                仅保存文本</button
-              ><button class="btn btn-primary w-50" onclick="saveOcrText(true)">
+                仅保存文本
+              </button>
+              <button class="btn btn-primary w-50" onclick="saveOcrText(true)">
                 向下传导 (重载NER)
               </button>
             </div>
@@ -552,6 +682,7 @@
         </div>
       </div>
     </div>
+
     <div class="modal fade" id="ocrCorrectionModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -561,11 +692,9 @@
               id="ocr-wrong-word"
               class="form-control mb-2"
               readonly
-            /><input
-              type="text"
-              id="ocr-right-word"
-              class="form-control mb-3"
-            /><button
+            />
+            <input type="text" id="ocr-right-word" class="form-control mb-3" />
+            <button
               class="btn btn-primary w-100"
               onclick="submitOcrCorrection(event)"
             >
@@ -575,6 +704,7 @@
         </div>
       </div>
     </div>
+
     <div class="modal fade" id="addEntityModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -584,23 +714,27 @@
               id="add-ent-text"
               class="form-control mb-2"
               readonly
-            /><select id="add-ent-section" class="form-select mb-2"></select
-            ><select id="add-ent-type" class="form-select mb-2">
+            />
+            <select id="add-ent-section" class="form-select mb-2"></select>
+            <select id="add-ent-type" class="form-select mb-2">
               <option>疾病</option>
               <option>症状</option>
               <option>药物</option>
               <option>身体部位</option>
-              <option>手术/检查</option></select
-            ><select id="add-ent-polarity" class="form-select mb-3">
+              <option>手术/检查</option>
+            </select>
+            <select id="add-ent-polarity" class="form-select mb-3">
               <option>阳性</option>
-              <option>阴性</option></select
-            ><button class="btn btn-success w-100" onclick="saveNewEntity()">
+              <option>阴性</option>
+            </select>
+            <button class="btn btn-success w-100" onclick="saveNewEntity()">
               注入
             </button>
           </div>
         </div>
       </div>
     </div>
+
     <div class="modal fade" id="editEntityModal">
       <div class="modal-dialog modal-sm">
         <div class="modal-content">
@@ -608,26 +742,139 @@
             <input type="hidden" id="edit-ent-text" /><input
               type="hidden"
               id="edit-ent-start"
-            /><input type="hidden" id="edit-ent-section" /><span
+            /><input type="hidden" id="edit-ent-section" />
+            <span
               id="edit-display-text"
               class="d-block text-center fw-bold mb-3"
-            ></span
-            ><select id="edit-ent-type" class="form-select mb-2">
+            ></span>
+            <select id="edit-ent-type" class="form-select mb-2">
               <option>疾病</option>
               <option>症状</option>
               <option>药物</option>
               <option>身体部位</option>
-              <option>手术/检查</option></select
-            ><select id="edit-ent-polarity" class="form-select mb-3">
+              <option>手术/检查</option>
+            </select>
+            <select id="edit-ent-polarity" class="form-select mb-3">
               <option>阳性</option>
               <option>阴性</option>
             </select>
             <div class="d-flex gap-2">
               <button class="btn btn-danger w-50" onclick="deleteEntity()">
-                剔除</button
-              ><button class="btn btn-primary w-50" onclick="updateEntity()">
+                剔除
+              </button>
+              <button class="btn btn-primary w-50" onclick="updateEntity()">
                 更新
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="empiModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card border-0 shadow-lg">
+          <div class="modal-header border-bottom-0 pb-0">
+            <h5 class="modal-title fw-bold text-dark">
+              <i class="bi bi-person-badge text-primary"></i> 患者主索引网关
+              (EMPI)
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body pt-3 pb-4">
+            <p class="text-muted small mb-4">
+              请确立当前就诊的患者身份。系统将自动为其关联并继承历史健康档案（如过敏史、既往史）以进行处方预警校验。
+            </p>
+            <ul class="nav nav-pills nav-fill mb-3" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link active fw-bold border"
+                  data-bs-toggle="tab"
+                  data-bs-target="#empi-old"
+                  type="button"
+                >
+                  提取历史档案
+                </button>
+              </li>
+              <li class="nav-item ms-2" role="presentation">
+                <button
+                  class="nav-link fw-bold border text-success"
+                  data-bs-toggle="tab"
+                  data-bs-target="#empi-new"
+                  type="button"
+                >
+                  建档新患者
+                </button>
+              </li>
+            </ul>
+            <div class="tab-content">
+              <div class="tab-pane fade show active" id="empi-old">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted"
+                    >选择现有患者标识符</label
+                  >
+                  <select
+                    class="form-select bg-light border-0 shadow-sm"
+                    id="empi-patient-select"
+                  ></select>
+                </div>
+                <button
+                  class="btn btn-primary w-100 fw-bold"
+                  onclick="selectPatient()"
+                >
+                  <i class="bi bi-check2-circle"></i> 确立身份并解锁工作站
+                </button>
+              </div>
+              <div class="tab-pane fade" id="empi-new">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted"
+                    >患者姓名 (选填)</label
+                  >
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="empi-new-name"
+                    placeholder="留空则由 AI 自动提取"
+                  />
+                </div>
+                <div class="row mb-4">
+                  <div class="col-6">
+                    <label class="form-label small fw-bold text-muted"
+                      >性别</label
+                    >
+                    <select
+                      class="form-select form-select-sm"
+                      id="empi-new-gender"
+                    >
+                      <option value="">(自动提取)</option>
+                      <option value="男">男</option>
+                      <option value="女">女</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small fw-bold text-muted"
+                      >年龄 (选填)</label
+                    >
+                    <input
+                      type="text"
+                      class="form-control form-control-sm"
+                      id="empi-new-age"
+                      placeholder="如: 45岁"
+                    />
+                  </div>
+                </div>
+                <button
+                  class="btn btn-success w-100 fw-bold"
+                  onclick="createNewPatient()"
+                >
+                  <i class="bi bi-person-plus-fill"></i> 建立新档案并解锁
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -675,6 +922,17 @@
                     style="border-radius: 8px"
                   >
                     <i class="bi bi-sliders me-2"></i> 基础截断与调度
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button
+                    class="nav-link text-start fw-bold"
+                    data-bs-toggle="tab"
+                    data-bs-target="#set-emr-rules"
+                    type="button"
+                    style="border-radius: 8px"
+                  >
+                    <i class="bi bi-ui-checks me-2"></i> 表单与质控规则
                   </button>
                 </li>
                 <li class="nav-item">
@@ -812,6 +1070,42 @@
                       </div>
                     </div>
                   </div>
+
+                  <div class="tab-pane fade" id="set-emr-rules">
+                    <div class="bg-white p-4 rounded-3 border shadow-sm">
+                      <h6 class="fw-bold mb-3 text-dark">
+                        <i class="bi bi-file-earmark-medical"></i>
+                        动态表单与质控参数
+                      </h6>
+                      <div class="alert alert-primary py-2 small border-0">
+                        <i class="bi bi-info-circle-fill me-2"></i
+                        ><strong>填写说明：</strong>
+                        此处配置决定了医生工作站【结构化复核】界面中的表单构成。请用<strong>英文逗号</strong>分隔。
+                      </div>
+                      <div class="mb-4">
+                        <label class="form-label small text-muted fw-bold"
+                          >标准表单字段 (工作站左侧将显示的固定文本框)</label
+                        ><textarea
+                          class="form-control"
+                          id="gui-emr-standard"
+                          rows="3"
+                          placeholder="姓名, 性别, 年龄, 主诉, 现病史..."
+                        ></textarea>
+                      </div>
+                      <div class="mb-0">
+                        <label class="form-label small text-danger fw-bold"
+                          >质控强约束必填项
+                          (归档时若为空将被红框强制拦截)</label
+                        ><textarea
+                          class="form-control border-danger"
+                          id="gui-emr-required"
+                          rows="2"
+                          placeholder="主诉, 过敏史..."
+                        ></textarea>
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="tab-pane fade" id="set-ocr">
                     <div
                       class="d-flex justify-content-between align-items-center mb-3"
@@ -832,6 +1126,7 @@
                     </div>
                     <div id="ocr-gui-container"></div>
                   </div>
+
                   <div class="tab-pane fade" id="set-cdss">
                     <div
                       class="d-flex justify-content-between align-items-center mb-3"
@@ -847,6 +1142,7 @@
                     </div>
                     <div id="cdss-gui-container"></div>
                   </div>
+
                   <div class="tab-pane fade h-100" id="set-dev">
                     <div class="d-flex flex-column h-100">
                       <div
@@ -890,13 +1186,15 @@
                     id="settings-save-msg"
                     style="display: none"
                     ><i class="bi bi-check-circle-fill"></i> 热重载已生效</span
-                  ><button
+                  >
+                  <button
                     type="button"
                     class="btn btn-light border px-4"
                     data-bs-dismiss="modal"
                   >
-                    取消</button
-                  ><button
+                    取消
+                  </button>
+                  <button
                     type="button"
                     class="btn btn-primary px-4 fw-bold shadow-sm"
                     onclick="saveSettingsConsole(this)"
