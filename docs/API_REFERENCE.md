@@ -120,7 +120,7 @@
     * `get_patient_history(self, patient_id: str) -> dict`
         * **新增功能**：EMPI 接口，溯源目标患者最近一次的 `06_human_verified.json`，提取并返回其人口统计学信息与过敏史。
     * `save_visit_snapshot(self, ...) -> str`
-        * **强化功能**：执行双向 CDSS 拦截检验。不仅比对模型提取的实体字典，还会**全局检索前端表单的手写纯文本**，确保不漏掉任何未被 AI 识别的禁忌药物输入。
+        * **强化功能**：执行双向 CDSS 拦截检验。同时**兼容纯文本直通模式**，当入参 `image_path` 为空时，底层 I/O 引擎会智能跳过图像的二进制拷贝过程，确保纯文本病历也能生成完整合规的 JSON 快照目录。
 
 ---
 
@@ -128,11 +128,10 @@
 **文件功能**：系统的“中央处理器”与管线编排总线。负责串联底层各个互相独立的 AI 算子和数据处理引擎，构建出一条完整的有向无环图（DAG）流水线。
 
 ### 核心函数接口
-* `run_medical_pipeline(image_path: str, patient_id: str = None, patient_info: dict = None) -> str`
-    * **功能**：批处理全链路调度。在 OCR 清洗后、NER 识别前，执行 **EMPI 历史档案继承机制**。将入参的 `patient_info` 及历史过敏史强制拼接入当前的病历段落字典中，补全上下文。
-    * **输入**：`image_path` (物理图径), `patient_id` (选填，患者流水号), `patient_info` (选填，包含姓名、性别、年龄的基础字典)。
-* `run_partial_ner(section_name: str, content: str) -> list`
-    * **功能**：局部微服务调度（Microservice Reload）。仅对指定的一段文本执行短句切分、实体推理与极性传导。
+* `run_medical_pipeline(image_path: str = None, raw_text_input: str = None, patient_id: str = None, patient_info: dict = None) -> str`
+    * **功能**：基于 DAG 的双模态智能分流调度器。
+    * **核心流转逻辑**：系统会智能侦测入参。如果提供了 `raw_text_input`，则**熔断并跳过 OCR 感知层**，直接唤醒文本清洗器与 NER 认知层；否则走标准的图像解析流。
+    * **兜底保护 (Fallback)**：若直通的文本未能被正则表达式命中任何“锚点”，系统将自动生成 `{"综合病历文本": raw_text}` 的兜底沙箱以防止信息丢失。
 
 ---
 
@@ -143,6 +142,10 @@
     * **功能**：EMPI 网关患者主索引微服务。分别用于下发格式化的历史患者列表树，以及使用 UUID 算法生成全新的防篡改患者流水号。
 * 动态模板上下文注入 (`get_emr_config`)
     * **功能**：在 `/` 与 `/analyze` 路由响应中，拦截读取 `rules.json`，并将动态表单配置 (`standard_fields` 和 `required_fields`) 注入 Jinja2 渲染引擎。
+* `POST /analyze`
+    * **重构逻辑 (多模态网关)**：新增强大的文件解析中间件。
+        * **PDF 处理**：若检测到后缀为 `.pdf`，通过 `fitz` (PyMuPDF) 引擎以 `Matrix(2, 2)` 参数将其转化为 2 倍超采样的 JPEG 高清图像，再移交至 OCR 算子。
+        * **文档处理**：拦截 `.docx` 与 `.txt` 上传，利用 `python-docx` 抽取全部段落文本，与前端直接粘贴的文本进行拼接整合，送入文本直通管线。
 
 ### 核心路由接口 (Routes)
 * `POST /analyze`
@@ -174,7 +177,10 @@
     * `多维病例库引擎` (集成手风琴目录树与跨病历多模态检索组件)
 * **右侧沉浸式工作区 (Workspace)**：动态响应数据并横向铺开。包含：
     * 动态患者身份横幅 (`#dynamic-patient-banner`) 与全局 CDSS 预警展示容器。
-    * 三大核心流转 Tab：`溯源视图` (图文双列对照)、`结构化复核` (动态读取 rules.json 生成表单与右侧吸顶实体药丸池)、`逻辑入库` (交互式 AI 草稿垫与医生手写签名)。
+    * 三大核心流转 Tab：
+        * `溯源视图`：**具备自适应弹性网格**。存在图径时为图文双列对照；侦测到“文本直通”模式时，自动销毁图像列，将文本结构化投影区平铺为 100% 满宽。
+        * `结构化复核`：动态读取 rules.json 生成表单与右侧吸顶实体药丸池。
+        * `逻辑入库`：交互式 AI 草稿垫与医生手写签名。
 * **状态机桥接 (Data Hydration)**：通过 `<script> window.SYSTEM_CONTEXT = {...} </script>` 标签将后端生成的 Python 字典序列化注入前端内存空间，实现前后端状态分离。
 * **全局交互外挂组件**：隐藏的 Toast 系统提示器、划词选区悬浮舱 (`#selection-bubble`)、以及挂载底层的增删改查 Modal 模态框群。
 
