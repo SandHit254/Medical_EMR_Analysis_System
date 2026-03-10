@@ -64,6 +64,7 @@ def index():
         record=None,
         error=None,
         image_filename=None,
+        history_img_url=None,
         emr_config=get_emr_config(),
     )
 
@@ -116,6 +117,7 @@ def analyze_view():
                 record=record_data,
                 error=None,
                 image_filename=filename,
+                history_img_url=None,
                 emr_config=get_emr_config(),
             )
         else:
@@ -151,6 +153,83 @@ def save_report():
         return jsonify({"status": "success", "message": "修正数据回存完毕。"})
     except Exception as e:
         return jsonify({"status": "error", "message": f"持久化 I/O 错误: {str(e)}"})
+
+
+# =====================================================================
+# 左侧栏：病例库树状图与多模态搜索引擎 API
+# =====================================================================
+@app.route("/api/library/tree", methods=["GET"])
+def get_library_tree():
+    try:
+        tree = StorageEngine().get_patient_tree()
+        return jsonify({"code": 200, "tree": tree})
+    except Exception as e:
+        return jsonify({"code": 500, "message": str(e)})
+
+
+@app.route("/api/library/search", methods=["POST"])
+def search_library():
+    try:
+        query = request.json.get("query", "")
+        results = StorageEngine().search_records(query)
+        return jsonify({"code": 200, "results": results})
+    except Exception as e:
+        return jsonify({"code": 500, "message": str(e)})
+
+
+@app.route("/records/<patient_id>/<visit_id>/image")
+def serve_record_image(patient_id, visit_id):
+    """单独提供历史影像的渲染流"""
+    engine = StorageEngine()
+    patient_folder = (
+        patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
+    )
+    visit_dir = os.path.join(engine.root, patient_folder, visit_id)
+    return send_from_directory(visit_dir, "01_source.jpg")
+
+
+@app.route("/view/<patient_id>/<visit_id>", methods=["GET"])
+def view_record(patient_id, visit_id):
+    """历史病历回溯系统：自动加载旧版 JSON 并无缝渲染至工作站"""
+    try:
+        engine = StorageEngine()
+        patient_folder = (
+            patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
+        )
+        visit_dir = os.path.join(engine.root, patient_folder, visit_id)
+
+        target_file = os.path.join(visit_dir, "06_human_verified.json")
+        if not os.path.exists(target_file):
+            target_file = os.path.join(visit_dir, "05_final_summary.json")
+
+        if os.path.exists(target_file):
+            with open(target_file, "r", encoding="utf-8") as f:
+                record_data = json.load(f)
+
+            img_url = None
+            if os.path.exists(os.path.join(visit_dir, "01_source.jpg")):
+                img_url = f"/records/{patient_folder}/{visit_id}/image"
+
+            return render_template(
+                "index.html",
+                record=record_data,
+                error=None,
+                image_filename=None,
+                history_img_url=img_url,
+                emr_config=get_emr_config(),
+            )
+        else:
+            return render_template(
+                "index.html",
+                error="检索的病历已被删除或损坏。",
+                emr_config=get_emr_config(),
+            )
+    except Exception as e:
+        return render_template(
+            "index.html",
+            error=f"加载历史病历失败: {str(e)}",
+            emr_config=get_emr_config(),
+        )
 
 
 @app.route("/api/patients", methods=["GET"])
@@ -261,7 +340,6 @@ def dynamic_cdss():
         for rule in cdss_rules:
             if rule["allergy"] in emr_text:
                 for drug in rule["drugs"]:
-                    # 【核心修复】：全局防漏匹配，无论是手工输入的字还是 AI 提取的实体
                     if drug in emr_text or any(
                         drug in ent_text for ent_text in extracted_texts
                     ):

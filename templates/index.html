@@ -68,9 +68,41 @@
       .diagnosis-chip:active {
         transform: scale(0.98);
       }
+      .visit-item:hover {
+        background-color: #f0fdf4 !important;
+      }
+      .lib-card-hover:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08) !important;
+        border-color: #93c5fd !important;
+      }
     </style>
   </head>
-  <body class="container-fluid px-xl-5 pb-5">
+  <body class="container-fluid px-xl-4 pb-5">
+    <div
+      class="toast-container position-fixed bottom-0 end-0 p-4"
+      style="z-index: 1080"
+    >
+      <div
+        id="systemToast"
+        class="toast align-items-center text-white bg-success border-0 shadow-lg"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        <div class="d-flex">
+          <div class="toast-body fw-bold" id="toast-message">
+            <i class="bi bi-check-circle me-2"></i>操作成功
+          </div>
+          <button
+            type="button"
+            class="btn-close btn-close-white me-2 m-auto"
+            data-bs-dismiss="toast"
+          ></button>
+        </div>
+      </div>
+    </div>
+
     <div
       id="loading-overlay"
       style="
@@ -119,9 +151,9 @@
       </button>
     </header>
 
-    <div class="row g-4 justify-content-center">
-      <div class="col-xl-3 col-lg-4">
-        <div class="glass-card p-3 mb-4 shadow-sm border rounded bg-white">
+    <div class="row g-4 align-items-start">
+      <div class="col-xl-3 col-lg-4 d-flex flex-column gap-3">
+        <div class="glass-card p-3 shadow-sm border rounded bg-white">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="fw-bold text-dark m-0">
@@ -135,19 +167,17 @@
                 endif %}</span
               >
             </div>
-            {% if not record %}
             <button
               class="btn btn-sm btn-outline-secondary"
               onclick="openEmpiGateway()"
             >
-              <i class="bi bi-arrow-left-right"></i> 确立/切换
+              <i class="bi bi-arrow-left-right"></i> 切换
             </button>
-            {% endif %}
           </div>
         </div>
 
         <div
-          class="glass-card p-4 mb-4 shadow-sm border rounded position-relative"
+          class="glass-card p-4 shadow-sm border rounded position-relative bg-white"
         >
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-cloud-arrow-up"></i> 影像采集节点
@@ -185,12 +215,11 @@
 
             <div class="mb-3">
               <input
-                class="form-control form-control-lg"
+                class="form-control form-control-sm"
                 type="file"
                 name="image"
                 accept="image/*"
                 required
-                style="font-size: 0.9rem"
               />
             </div>
             <button
@@ -198,15 +227,14 @@
               id="upload-submit-btn"
               class="btn btn-primary w-100 fw-bold"
             >
-              <i class="bi bi-lightning-charge"></i> 启动分析流
+              <i class="bi bi-lightning-charge"></i> 启动 AI 分析流
             </button>
             {% if not record %}
             <div
               id="upload-lock-msg"
               class="text-warning small mt-2 text-center"
             >
-              <i class="bi bi-info-circle-fill"></i>
-              点击启动前请选择患者
+              <i class="bi bi-info-circle-fill"></i> 若未选患者将自动触发弹窗
             </div>
             {% endif %}
           </form>
@@ -214,95 +242,170 @@
 
         {% if error %}
         <div
-          class="alert alert-danger glass-card border-0 small shadow-sm"
+          class="alert alert-danger glass-card border-0 small shadow-sm mb-0"
           style="background: rgba(254, 226, 226, 0.8)"
         >
           <strong><i class="bi bi-exclamation-triangle"></i> 阻断提示：</strong
           ><br />{{ error }}
         </div>
         {% endif %} {% if record %}
-        <div class="glass-card p-4 mb-4 shadow-sm border rounded">
+        <div class="glass-card p-4 shadow-sm border rounded bg-white">
           <h6 class="fw-bold text-dark mb-3">
             <i class="bi bi-hdd-network"></i> 归档元数据
           </h6>
           <div
             class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2"
           >
-            <span class="text-muted small">就诊流水号</span
+            <span class="text-muted small">就诊流水</span
             ><span class="fw-bold text-dark small" id="meta-visit-id"
               >{{ record.get('就诊编号', '缺失') }}</span
             >
           </div>
           <div class="d-flex justify-content-between align-items-center">
-            <span class="text-muted small">患者标识符</span
+            <span class="text-muted small">患者标识</span
             ><span class="fw-bold text-dark small" id="meta-patient-id"
               >{{ record.get('患者ID', '缺失') }}</span
             >
           </div>
         </div>
 
-        <div class="glass-card p-3 shadow-sm border rounded text-center">
-          <a href="/" class="btn btn-outline-danger w-100 fw-bold"
-            ><i class="bi bi-door-closed"></i> 结束接诊 / 重启工作台</a
+        <div
+          class="glass-card p-3 shadow-sm border rounded text-center bg-white"
+        >
+          <button
+            type="button"
+            onclick="resetWorkstation()"
+            class="btn btn-outline-danger w-100 fw-bold"
           >
+            <i class="bi bi-door-closed"></i> 结束接诊 / 重启
+          </button>
         </div>
         {% endif %}
+
+        <div
+          class="glass-card p-3 shadow-sm border rounded bg-white d-flex flex-column flex-grow-1"
+        >
+          <h6 class="fw-bold text-dark mb-3">
+            <i class="bi bi-journal-medical text-primary"></i> 电子病历库检索
+          </h6>
+          <div class="input-group mb-3 shadow-sm rounded">
+            <input
+              type="text"
+              class="form-control form-control-sm bg-light border-0"
+              id="library-search-input"
+              placeholder="搜姓名/PID/实体..."
+              onkeypress="if (event.keyCode == 13) executeLibrarySearch();"
+            />
+            <button
+              class="btn btn-primary btn-sm px-3"
+              onclick="executeLibrarySearch()"
+            >
+              <i class="bi bi-search"></i>
+            </button>
+          </div>
+          <ul class="nav nav-pills nav-fill mb-2 small" role="tablist">
+            <li class="nav-item">
+              <button
+                class="nav-link active py-1 fw-bold"
+                data-bs-toggle="tab"
+                data-bs-target="#lib-tree"
+                type="button"
+              >
+                <i class="bi bi-diagram-3"></i> 目录树
+              </button>
+            </li>
+            <li class="nav-item">
+              <button
+                class="nav-link py-1 fw-bold"
+                data-bs-toggle="tab"
+                data-bs-target="#lib-search"
+                type="button"
+              >
+                <i class="bi bi-funnel"></i> 匹配结果
+              </button>
+            </li>
+          </ul>
+          <div
+            class="tab-content flex-grow-1 overflow-auto hide-scrollbar"
+            style="max-height: 40vh; min-height: 200px"
+          >
+            <div class="tab-pane fade show active" id="lib-tree">
+              <div id="patient-tree-container" class="small mt-2">
+                <div class="text-center text-muted mt-5">
+                  <span class="spinner-border spinner-border-sm"></span>
+                  载入中...
+                </div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="lib-search">
+              <div id="patient-search-container" class="small mt-2">
+                <div
+                  class="alert alert-light border text-muted text-center mt-2 p-2"
+                >
+                  请在上方输入检索词。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="col-xl-9 col-lg-8 d-flex flex-column">
+      <div class="col-xl-9 col-lg-8 d-flex flex-column gap-3">
         {% if record %}
         <div
-          class="alert shadow-sm border mb-3 d-flex justify-content-between align-items-center bg-white rounded"
+          class="alert shadow-sm border m-0 d-flex justify-content-between align-items-center bg-white rounded"
         >
           <div>
-            <span class="badge bg-primary me-2 px-2 py-1"
-              ><i class="bi bi-person-fill"></i> 当前患者</span
+            <span class="badge bg-primary me-3 px-3 py-2 fs-6 shadow-sm"
+              ><i class="bi bi-person-fill"></i> 正在处理当前患者</span
             >
-            <strong class="fs-5 me-3"
+            <strong class="fs-4 me-4 text-dark"
               >{{ record.get('结构化病历', {}).get('姓名', '未知') }}</strong
             >
-            <span class="text-muted small me-3"
-              ><i class="bi bi-gender-ambiguous"></i> {{
+            <span class="text-muted fw-bold me-3"
+              ><i class="bi bi-gender-ambiguous text-primary"></i> {{
               record.get('结构化病历', {}).get('性别', '-') }}</span
             >
-            <span class="text-muted small me-3"
-              ><i class="bi bi-calendar-event"></i> {{ record.get('结构化病历',
-              {}).get('年龄', '-') }}</span
+            <span class="text-muted fw-bold me-3"
+              ><i class="bi bi-calendar-event text-primary"></i> {{
+              record.get('结构化病历', {}).get('年龄', '-') }}</span
             >
           </div>
-          <div class="text-muted small">
+          <div class="text-muted fw-bold bg-light px-3 py-1 rounded border">
             <i class="bi bi-upc-scan"></i> {{ record.get('患者ID') }}
           </div>
         </div>
         {% else %}
         <div
           id="dynamic-patient-banner"
-          class="alert shadow-sm border mb-3 justify-content-between align-items-center bg-white rounded"
+          class="alert shadow-sm border m-0 justify-content-between align-items-center bg-white rounded"
           style="display: none !important"
         >
           <div>
-            <span class="badge bg-primary me-2 px-2 py-1"
+            <span
+              class="badge bg-warning text-dark me-3 px-3 py-2 fs-6 shadow-sm"
               ><i class="bi bi-person-fill"></i> 待处理患者</span
             >
-            <strong id="dyn-banner-name" class="fs-5 me-3"></strong>
-            <span class="text-muted small me-3"
-              ><i class="bi bi-gender-ambiguous"></i>
+            <strong id="dyn-banner-name" class="fs-4 me-4 text-dark"></strong>
+            <span class="text-muted fw-bold me-3"
+              ><i class="bi bi-gender-ambiguous text-primary"></i>
               <span id="dyn-banner-gender"></span
             ></span>
-            <span class="text-muted small me-3"
-              ><i class="bi bi-calendar-event"></i>
+            <span class="text-muted fw-bold me-3"
+              ><i class="bi bi-calendar-event text-primary"></i>
               <span id="dyn-banner-age"></span
             ></span>
           </div>
-          <div class="text-muted small">
+          <div class="text-muted fw-bold bg-light px-3 py-1 rounded border">
             <i class="bi bi-upc-scan"></i> <span id="dyn-banner-pid"></span>
           </div>
         </div>
-        {% endif %} {% if record %}
+        {% endif %}
+
         <div id="cdss-alert-container">
-          {% if record.get('CDSS预警') %}
+          {% if record and record.get('CDSS预警') %}
           <div
-            class="alert shadow-sm border-0 mb-3 rounded"
+            class="alert shadow-sm border-0 m-0 rounded"
             style="
               background-color: #fef2f2;
               border-left: 6px solid #ef4444 !important;
@@ -327,70 +430,89 @@
           {% endif %}
         </div>
 
+        {% if record %}
         <div
-          class="glass-card flex-grow-1 d-flex flex-column shadow-sm border rounded"
+          class="glass-card flex-grow-1 d-flex flex-column shadow-sm border rounded bg-white"
         >
-          <div class="p-3 pb-0">
-            <ul class="nav nav-tabs" id="workstationTabs">
+          <div class="p-3 pb-0 border-bottom bg-light bg-opacity-50">
+            <ul class="nav nav-tabs border-0" id="workstationTabs">
               <li class="nav-item">
                 <button
-                  class="nav-link active"
+                  class="nav-link active fw-bold px-4"
                   data-bs-toggle="tab"
                   data-bs-target="#tab-vision"
                 >
-                  <i class="bi bi-view-stacked"></i> 溯源视图
+                  <i class="bi bi-view-stacked text-primary"></i> 溯源视图
                 </button>
               </li>
               <li class="nav-item">
                 <button
-                  class="nav-link"
+                  class="nav-link fw-bold px-4"
                   data-bs-toggle="tab"
                   data-bs-target="#tab-emr"
                 >
-                  <i class="bi bi-file-earmark-medical"></i> 结构化复核
+                  <i class="bi bi-file-earmark-medical text-success"></i>
+                  结构化复核
                 </button>
               </li>
               <li class="nav-item">
                 <button
-                  class="nav-link"
+                  class="nav-link fw-bold px-4"
                   data-bs-toggle="tab"
                   data-bs-target="#tab-diagnosis"
                 >
-                  <i class="bi bi-clipboard2-pulse"></i> 逻辑入库
+                  <i class="bi bi-clipboard2-pulse text-danger"></i> 逻辑入库
                 </button>
               </li>
             </ul>
           </div>
 
-          <div class="tab-content p-4 flex-grow-1" style="min-height: 60vh">
+          <div class="tab-content p-4 flex-grow-1" style="min-height: 65vh">
             <div class="tab-pane fade show active" id="tab-vision">
               <div class="row g-4 align-items-start">
                 <div
-                  class="col-md-5 position-sticky"
+                  class="col-lg-5 position-sticky"
                   style="top: 1.5rem; z-index: 10"
                 >
-                  <div class="bg-white p-2 rounded text-center border">
-                    {% if image_filename %}<img
+                  <div
+                    class="bg-light p-2 rounded text-center border shadow-sm"
+                  >
+                    {% if image_filename %}
+                    <img
                       src="/uploads_temp/{{ image_filename }}"
                       class="img-fluid rounded"
-                      style="max-height: 75vh; width: 100%; object-fit: contain"
-                    />{% endif %}
+                      style="max-height: 70vh; width: 100%; object-fit: contain"
+                    />
+                    {% elif history_img_url %}
+                    <img
+                      src="{{ history_img_url }}"
+                      class="img-fluid rounded"
+                      style="max-height: 70vh; width: 100%; object-fit: contain"
+                    />
+                    {% else %}
+                    <div class="text-muted p-5 my-5">
+                      <i class="bi bi-image" style="font-size: 3rem"></i
+                      ><br /><span class="small mt-2 d-block"
+                        >未发现本地关联影像存档</span
+                      >
+                    </div>
+                    {% endif %}
                   </div>
                 </div>
-                <div class="col-md-7">
+                <div class="col-lg-7">
                   <div
                     class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2"
                   >
                     <h6 class="text-muted fw-bold mb-0 small tracking-wide">
                       语义识别投影
-                      <span class="badge bg-secondary ms-2 fw-normal"
+                      <span class="badge bg-secondary ms-2 fw-normal shadow-sm"
                         >划词菜单 / 点击干预 / 增删重载</span
                       >
                     </h6>
                   </div>
                   <div
                     id="highlight-render-target"
-                    class="text-panel p-4 border rounded bg-white"
+                    class="text-panel p-4 border rounded bg-white shadow-sm"
                     style="user-select: text"
                   ></div>
                 </div>
@@ -413,7 +535,7 @@
                 </div>
               </div>
               <div class="row g-4 align-items-start">
-                <div class="col-md-8">
+                <div class="col-lg-8">
                   <form id="emr-form">
                     {% set standard_fields = emr_config.standard_fields %} {%
                     set req_fields = emr_config.required_fields %} {% set
@@ -440,7 +562,7 @@
                           >{% endif %}
                         </label>
                         <textarea
-                          class="form-control bg-white shadow-sm emr-input-target"
+                          class="form-control bg-light border-0 shadow-sm emr-input-target"
                           name="{{ field }}"
                           {%
                           if
@@ -473,7 +595,7 @@
                           >{{ field }}</label
                         >
                         <textarea
-                          class="form-control bg-white shadow-sm emr-input-target"
+                          class="form-control bg-light border-0 shadow-sm emr-input-target"
                           name="{{ field }}"
                           rows="2"
                           style="transition: all 0.3s"
@@ -488,7 +610,7 @@
                 </div>
 
                 <div
-                  class="col-md-4 position-sticky"
+                  class="col-lg-4 position-sticky"
                   style="top: 1.5rem; z-index: 10"
                 >
                   <div
@@ -508,7 +630,7 @@
                       style="background-color: #e0f2fe; color: #0369a1"
                     >
                       <i class="bi bi-cursor-fill"></i>
-                      点击下方实体，自动填入当前选中的左侧输入框。
+                      点击下方实体自动填入选中框。
                     </div>
                     <div
                       id="global-chip-pool"
@@ -545,9 +667,8 @@
                   <span
                     class="badge rounded-pill bg-white text-success border border-success me-2 mb-2 px-3 py-2 diagnosis-chip shadow-sm"
                     onclick="insertDiagnosis('{{ issue }}')"
+                    ><i class="bi bi-plus-circle me-1"></i>{{ issue }}</span
                   >
-                    <i class="bi bi-plus-circle me-1"></i>{{ issue }}
-                  </span>
                   {% endfor %}
                 </div>
               </div>
@@ -572,7 +693,7 @@
                 >
                 <textarea
                   id="final-diagnosis-text"
-                  class="form-control bg-light"
+                  class="form-control bg-light border-0 shadow-inner"
                   rows="6"
                   style="
                     font-size: 1.05rem;
@@ -584,7 +705,7 @@
               </div>
 
               <div
-                class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mt-4"
+                class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mt-4 shadow-sm"
               >
                 <div class="d-flex align-items-center">
                   <div
@@ -613,19 +734,19 @@
         {% else %}
         <div
           id="idle-state-view"
-          class="glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded"
-          style="transition: all 0.4s"
+          class="glass-card flex-grow-1 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-white"
+          style="transition: all 0.4s; min-height: 60vh"
         >
           <i
             id="idle-icon"
             class="bi bi-person-badge text-primary opacity-25"
-            style="font-size: 5rem; transition: all 0.4s"
+            style="font-size: 6rem; transition: all 0.4s"
           ></i>
           <h4 id="idle-title" class="fw-bold text-dark mb-2 mt-3">
             等待指派患者
           </h4>
           <p id="idle-desc" class="text-muted mx-auto">
-            系统闲置中，请先在左侧建立患者身份网关连接
+            系统闲置中，请先在左侧建立患者身份网关连接，或在左侧边栏检索历史病例库。
           </p>
         </div>
         {% endif %}
@@ -672,9 +793,8 @@
                 class="btn btn-outline-secondary w-50"
                 onclick="saveOcrText(false)"
               >
-                仅保存文本
-              </button>
-              <button class="btn btn-primary w-50" onclick="saveOcrText(true)">
+                仅保存文本</button
+              ><button class="btn btn-primary w-50" onclick="saveOcrText(true)">
                 向下传导 (重载NER)
               </button>
             </div>
@@ -682,7 +802,6 @@
         </div>
       </div>
     </div>
-
     <div class="modal fade" id="ocrCorrectionModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -692,9 +811,11 @@
               id="ocr-wrong-word"
               class="form-control mb-2"
               readonly
-            />
-            <input type="text" id="ocr-right-word" class="form-control mb-3" />
-            <button
+            /><input
+              type="text"
+              id="ocr-right-word"
+              class="form-control mb-3"
+            /><button
               class="btn btn-primary w-100"
               onclick="submitOcrCorrection(event)"
             >
@@ -704,7 +825,6 @@
         </div>
       </div>
     </div>
-
     <div class="modal fade" id="addEntityModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -714,27 +834,26 @@
               id="add-ent-text"
               class="form-control mb-2"
               readonly
-            />
-            <select id="add-ent-section" class="form-select mb-2"></select>
-            <select id="add-ent-type" class="form-select mb-2">
+            /><select id="add-ent-section" class="form-select mb-2"></select
+            ><select id="add-ent-type" class="form-select mb-2">
               <option>疾病</option>
               <option>症状</option>
               <option>药物</option>
               <option>身体部位</option>
-              <option>手术/检查</option>
-            </select>
-            <select id="add-ent-polarity" class="form-select mb-3">
+              <option>手术/检查</option></select
+            ><select id="add-ent-polarity" class="form-select mb-3">
               <option>阳性</option>
-              <option>阴性</option>
-            </select>
-            <button class="btn btn-success w-100" onclick="saveNewEntity()">
-              注入
+              <option>阴性</option></select
+            ><button
+              class="btn btn-success w-100 fw-bold"
+              onclick="saveNewEntity()"
+            >
+              确认注入
             </button>
           </div>
         </div>
       </div>
     </div>
-
     <div class="modal fade" id="editEntityModal">
       <div class="modal-dialog modal-sm">
         <div class="modal-content">
@@ -742,28 +861,31 @@
             <input type="hidden" id="edit-ent-text" /><input
               type="hidden"
               id="edit-ent-start"
-            /><input type="hidden" id="edit-ent-section" />
-            <span
+            /><input type="hidden" id="edit-ent-section" /><span
               id="edit-display-text"
-              class="d-block text-center fw-bold mb-3"
-            ></span>
-            <select id="edit-ent-type" class="form-select mb-2">
+              class="d-block text-center fw-bold mb-3 fs-5"
+            ></span
+            ><select id="edit-ent-type" class="form-select mb-2">
               <option>疾病</option>
               <option>症状</option>
               <option>药物</option>
               <option>身体部位</option>
-              <option>手术/检查</option>
-            </select>
-            <select id="edit-ent-polarity" class="form-select mb-3">
+              <option>手术/检查</option></select
+            ><select id="edit-ent-polarity" class="form-select mb-3">
               <option>阳性</option>
               <option>阴性</option>
             </select>
             <div class="d-flex gap-2">
-              <button class="btn btn-danger w-50" onclick="deleteEntity()">
-                剔除
-              </button>
-              <button class="btn btn-primary w-50" onclick="updateEntity()">
-                更新
+              <button
+                class="btn btn-danger w-50 fw-bold"
+                onclick="deleteEntity()"
+              >
+                剔除</button
+              ><button
+                class="btn btn-primary w-50 fw-bold"
+                onclick="updateEntity()"
+              >
+                更新属性
               </button>
             </div>
           </div>
@@ -788,7 +910,7 @@
           </div>
           <div class="modal-body pt-3 pb-4">
             <p class="text-muted small mb-4">
-              请确立当前就诊的患者身份。系统将自动为其关联并继承历史健康档案（如过敏史、既往史）以进行处方预警校验。
+              请确立当前就诊的患者身份。系统将自动为其关联并继承历史健康档案以进行处方预警校验。
             </p>
             <ul class="nav nav-pills nav-fill mb-3" role="tablist">
               <li class="nav-item" role="presentation">

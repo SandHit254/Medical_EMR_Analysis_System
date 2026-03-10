@@ -6,25 +6,131 @@ function showLoading(text="神经引擎介入中...") { document.getElementById(
 function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
 function escapeHtml(text) { if (!text) return ""; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
+// 【新增交互】：全局 Toast 提示器
+function showSystemToast(msg, isError=false) {
+    const toastEl = document.getElementById('systemToast');
+    const toastBody = document.getElementById('toast-message');
+    toastEl.className = `toast align-items-center text-white border-0 shadow-lg ${isError ? 'bg-danger' : 'bg-success'}`;
+    toastBody.innerHTML = `<i class="bi bi-${isError ? 'exclamation-circle' : 'check-circle'} me-2"></i>${msg}`;
+    new bootstrap.Toast(toastEl).show();
+}
+
 /* ====================================================================
- * EMPI 患者主索引前置网关逻辑重构
+ * 左侧：电子病历库目录树与搜索引擎
  * ==================================================================== */
 document.addEventListener("DOMContentLoaded", function() {
+    loadLibraryTree();
+});
+
+function loadLibraryTree() {
+    fetch('/api/library/tree').then(r=>r.json()).then(data => {
+        const container = document.getElementById('patient-tree-container');
+        if(!data.tree || data.tree.length === 0) {
+            container.innerHTML = '<div class="text-muted text-center mt-4">档案库为空</div>';
+            return;
+        }
+        let html = '<div class="accordion accordion-flush border-0" id="accordionTree">';
+        data.tree.forEach((p, idx) => {
+            let visitList = p.visits.map(v => `
+                <div class="p-2 border-bottom visit-item" style="cursor:pointer; padding-left: 1rem !important;" onclick="window.location.href='/view/${p.patient_id}/${v.visit_id}'">
+                    <i class="bi bi-file-earmark-text text-primary me-2"></i> ${v.time}
+                </div>
+            `).join('');
+            html += `
+            <div class="accordion-item bg-transparent border-0 mb-1">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed py-2 px-2 bg-transparent small fw-bold rounded shadow-sm border" type="button" data-bs-toggle="collapse" data-bs-target="#flush-collapse${idx}">
+                        <i class="bi bi-folder2-open text-warning me-2 fs-6"></i> ${p.name} <span class="text-muted ms-2 fw-normal" style="font-size:0.7rem;">${p.patient_id.substring(4, 12)}</span>
+                    </button>
+                </h2>
+                <div id="flush-collapse${idx}" class="accordion-collapse collapse" data-bs-parent="#accordionTree">
+                    <div class="accordion-body p-0 bg-white border-start border-2 border-primary ms-2 mt-1">
+                        ${visitList}
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }).catch(() => {
+        document.getElementById('patient-tree-container').innerHTML = '<div class="text-danger text-center mt-4">加载失败</div>';
+    });
+}
+
+window.executeLibrarySearch = function() {
+    const query = document.getElementById('library-search-input').value.trim();
+    const container = document.getElementById('patient-search-container');
+    if(!query) {
+        container.innerHTML = '<div class="alert alert-light border text-muted text-center mt-2 p-2">请输入检索词</div>';
+        return;
+    }
+    
+    const searchTab = new bootstrap.Tab(document.querySelector('button[data-bs-target="#lib-search"]'));
+    searchTab.show();
+    
+    container.innerHTML = '<div class="text-center mt-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    
+    fetch('/api/library/search', {
+        method: 'POST',
+        headers:{'Content-Type': 'application/json'},
+        body: JSON.stringify({query: query})
+    }).then(r=>r.json()).then(data => {
+        if(data.results.length === 0) {
+            container.innerHTML = '<div class="alert alert-light border text-muted text-center mt-2 p-2">未匹配到相关档案</div>';
+            return;
+        }
+        let html = '';
+        data.results.forEach(res => {
+            let tagsHtml = res.tags.map(t => `<span class="badge bg-info text-dark me-1 border shadow-sm">${t}</span>`).join('');
+            html += `
+            <div class="card mb-2 shadow-sm border rounded lib-card-hover" style="cursor:pointer; transition:all 0.2s;" onclick="window.location.href='/view/${res.patient_id}/${res.visit_id}'">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold text-dark"><i class="bi bi-person-fill text-secondary"></i> ${res.name}</span>
+                        <span class="text-muted" style="font-size: 0.7rem;"><i class="bi bi-clock"></i> ${res.time}</span>
+                    </div>
+                    <div class="mb-2 text-muted" style="font-size: 0.7rem;">PID: ${res.patient_id}</div>
+                    <div>${tagsHtml}</div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }).catch(() => {
+        container.innerHTML = '<div class="alert alert-danger text-center mt-2 p-2">检索异常</div>';
+    });
+};
+
+/* ====================================================================
+ * EMPI 患者主索引网关与跨路由会话保持机制
+ * ==================================================================== */
+document.addEventListener("DOMContentLoaded", function() {
+    const hasRecord = document.getElementById('meta-visit-id') !== null;
+    let savedPid = sessionStorage.getItem('active_pid');
+    let savedPinfo = sessionStorage.getItem('active_pinfo');
+
+    // 只有在首页 (未载入病历) 的情况下才触发身份网关
+    if (!hasRecord && window.location.pathname === '/') {
+        // 如果缓存里有上次选中的患者，静默恢复状态
+        if (savedPid && savedPinfo) {
+            setPatientContext(savedPid, JSON.parse(savedPinfo), true);
+        } else {
+            openEmpiGateway();
+        }
+    }
+
     const uploadForm = document.getElementById('upload-form');
     if (uploadForm) {
         uploadForm.addEventListener('submit', function(e) {
             const patientIdInput = document.getElementById('upload-patient-id');
-            // 如果没选人就硬点提交，强行拦截并弹窗
             if (!patientIdInput.value.trim()) {
                 e.preventDefault(); 
                 openEmpiGateway();
             } else {
-                showLoading('系统管线流转中...');
+                showLoading('神经链路分析中，请稍候...');
             }
         });
     }
 
-    // 【核心修复】：为所有的输入框绑定实时输入事件，使得手工输入的文本也能立即触发 CDSS 碰撞校验
     document.querySelectorAll('.emr-input-target').forEach(el => {
         el.addEventListener('input', function() {
             if (window.SYSTEM_CONTEXT && window.SYSTEM_CONTEXT.emrData) {
@@ -34,6 +140,13 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 });
+
+window.resetWorkstation = function() {
+    // 彻底清除会话缓存并强制重定向回首页以释放前一个患者的上下文
+    sessionStorage.removeItem('active_pid');
+    sessionStorage.removeItem('active_pinfo');
+    window.location.href = '/';
+};
 
 window.openEmpiGateway = function() {
     fetch('/api/patients').then(r=>r.json()).then(data => {
@@ -57,7 +170,6 @@ window.selectPatient = function() {
     const pid = select.value;
     if(!pid) return alert('请选择有效的患者标识符，或切换右侧 Tab 建立新患者！');
     
-    // 【修复】：选老患者时，清除掉新患者表单中可能残留的数据
     document.getElementById('upload-patient-name').value = '';
     document.getElementById('upload-patient-gender').value = '';
     document.getElementById('upload-patient-age').value = '';
@@ -80,7 +192,17 @@ window.createNewPatient = function() {
     });
 };
 
-function setPatientContext(pid, info) {
+function setPatientContext(pid, info, skipRedirect = false) {
+    // 保存至浏览器缓存
+    sessionStorage.setItem('active_pid', pid);
+    sessionStorage.setItem('active_pinfo', JSON.stringify(info));
+
+    // 【核心修复】：如果在“历史病历查看视图”中切换了患者，强制跳回主页开启全新诊断流！
+    if (window.location.pathname.startsWith('/view/') && !skipRedirect) {
+        window.location.href = '/';
+        return;
+    }
+
     document.getElementById('current-patient-id-display').innerText = pid;
     document.getElementById('upload-patient-id').value = pid;
     
@@ -96,28 +218,16 @@ function setPatientContext(pid, info) {
         document.getElementById('dyn-banner-pid').innerText = pid;
     }
     
-    // 【核心修复】：闲置界面华丽变身为“就绪状态”
     const idleStateView = document.getElementById('idle-state-view');
     if (idleStateView) {
         idleStateView.className = "glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-success bg-opacity-10";
         idleStateView.style.borderColor = "#86efac";
-        
         const idleIcon = document.getElementById('idle-icon');
-        if(idleIcon) {
-            idleIcon.className = "bi bi-clipboard2-check-fill text-success opacity-75";
-        }
-        
+        if(idleIcon) idleIcon.className = "bi bi-clipboard2-check-fill text-success opacity-75";
         const idleTitle = document.getElementById('idle-title');
-        if(idleTitle) {
-            idleTitle.innerText = "患者档案已关联，工作站就绪";
-            idleTitle.className = "fw-bold text-success mb-2 mt-3";
-        }
-        
+        if(idleTitle) { idleTitle.innerText = "患者档案已关联，工作站就绪"; idleTitle.className = "fw-bold text-success mb-2 mt-3"; }
         const idleDesc = document.getElementById('idle-desc');
-        if(idleDesc) {
-            idleDesc.innerHTML = `已锁定患者 <strong>${pid}</strong>，请在左侧上传病历影像启动分析管线。`;
-            idleDesc.className = "text-success opacity-75 mx-auto";
-        }
+        if(idleDesc) { idleDesc.innerHTML = `已锁定患者 <strong>${pid}</strong>，请在左侧上传病历影像启动分析管线。`; idleDesc.className = "text-success opacity-75 mx-auto"; }
     }
     
     const modalEl = document.getElementById('empiModal');
@@ -129,7 +239,7 @@ function setPatientContext(pid, info) {
 
 
 /* ====================================================================
- * 表单焦点状态追踪 (Input Focus Tracker)
+ * 文本焦点捕获器
  * ==================================================================== */
 let activeInputField = null;
 document.addEventListener('focusin', function(e) {
@@ -141,6 +251,9 @@ document.addEventListener('focusin', function(e) {
 });
 
 
+/* ====================================================================
+ * 【核心防漂移渲染引擎】：不再被 Tokenizer 的坐标错位所困扰
+ * ==================================================================== */
 function renderEntityHighlights() {
     const context = window.SYSTEM_CONTEXT;
     if (!context || !context.emrData) return;
@@ -152,23 +265,68 @@ function renderEntityHighlights() {
         const rawText = context.emrData[sectionName];
         if (!rawText || rawText.trim() === '') return;
         
-        const sectionEntities = context.entitiesData.filter(ent => ent.section === sectionName || ent['所属段落'] === sectionName).sort((a, b) => a.start - b.start);
+        // 获取原始提取出的实体
+        const rawEntities = context.entitiesData.filter(ent => ent.section === sectionName || ent['所属段落'] === sectionName);
+        
+        // 1. 动态探针寻址算法：获取词汇在当前文本中的真实绝对坐标
+        let validEntities = [];
+        let searchCursor = 0;
+        
+        // 优先按照后端模型给出的起始位置排个大概的顺序
+        const sortedRaw = [...rawEntities].sort((a, b) => a.start - b.start);
+        
+        sortedRaw.forEach(ent => {
+            // 沿着指针往后找
+            let actualStart = rawText.indexOf(ent.text, searchCursor);
+            if (actualStart === -1) {
+                // 极端容错：如果后端由于识别乱序导致错过了，从头重新扫描一次
+                actualStart = rawText.indexOf(ent.text, 0);
+            }
+            
+            if (actualStart !== -1) {
+                validEntities.push({
+                    ...ent,
+                    actualStart: actualStart,
+                    actualEnd: actualStart + ent.text.length
+                });
+                // 推进指针，防止如果有两个相同的“疼痛”，被错误地映射到同一个位置上
+                searchCursor = actualStart + ent.text.length;
+            }
+        });
+
+        // 2. 按真实物理位置进行硬排序
+        validEntities.sort((a, b) => a.actualStart - b.actualStart);
+
+        // 3. 消解叠加冲突 (抛弃重叠或被包裹的次级实体)
+        let finalEntities = [];
+        let currentEnd = 0;
+        validEntities.forEach(ent => {
+            if (ent.actualStart >= currentEnd) {
+                finalEntities.push(ent);
+                currentEnd = ent.actualEnd;
+            }
+        });
+
+        // 4. 严谨拼接：绝对保证所有未被提取的文本 (比如“右下后牙”) 被原封不动地渲染出来
         let htmlStream = "";
         let cursor = 0;
 
-        sectionEntities.forEach(ent => {
-            if (ent.start >= cursor) {
-                htmlStream += escapeHtml(rawText.substring(cursor, ent.start));
-                const safeClass = ent.type.replace(/\//g, '_');
-                const isNegative = ent.polarity === '阴性';
-                const polarityStyle = isNegative ? 'opacity: 0.5; text-decoration: line-through;' : '';
-                const polarityBadge = isNegative ? '<span style="color:#ef4444;font-size:0.6rem;margin-left:4px;">(排除)</span>' : '';
+        finalEntities.forEach(ent => {
+            // 拼接入被跳过的普通文本
+            htmlStream += escapeHtml(rawText.substring(cursor, ent.actualStart));
+            
+            const safeClass = ent.type.replace(/\//g, '_');
+            const isNegative = ent.polarity === '阴性';
+            const polarityStyle = isNegative ? 'opacity: 0.5; text-decoration: line-through;' : '';
+            const polarityBadge = isNegative ? '<span style="color:#ef4444;font-size:0.6rem;margin-left:4px;">(排除)</span>' : '';
 
-                htmlStream += `<span class="entity-box type-${safeClass}" style="${polarityStyle} cursor: pointer; border-radius: 4px; padding: 2px 4px; transition: 0.2s;" onclick="openEntityEditor('${escapeHtml(ent.text)}', ${ent.start}, '${sectionName}', '${ent.type}', '${ent.polarity}')"><span class="entity-text fw-bold">${escapeHtml(ent.text)}</span><span class="entity-label">${escapeHtml(ent.type)}${polarityBadge}</span></span>`;
-                cursor = ent.end;
-            }
+            // 渲染动态气泡标签
+            htmlStream += `<span class="entity-box type-${safeClass}" style="${polarityStyle} cursor: pointer; border-radius: 4px; padding: 2px 4px; transition: 0.2s;" onclick="openEntityEditor('${escapeHtml(ent.text)}', ${ent.actualStart}, '${sectionName}', '${ent.type}', '${ent.polarity}')"><span class="entity-text fw-bold">${escapeHtml(ent.text)}</span><span class="entity-label">${escapeHtml(ent.type)}${polarityBadge}</span></span>`;
+            
+            cursor = ent.actualEnd;
         });
         
+        // 拼接收尾文本
         htmlStream += escapeHtml(rawText.substring(cursor));
 
         const sectionWrapper = document.createElement('div');
@@ -186,6 +344,7 @@ function renderEntityHighlights() {
 
     renderEntityChips();
 }
+
 
 function renderEntityChips() {
     const context = window.SYSTEM_CONTEXT;
@@ -223,7 +382,6 @@ function renderEntityChips() {
                 activeInputField.value = currentVal + insertText;
             }
             window.SYSTEM_CONTEXT.emrData[activeInputField.name] = activeInputField.value;
-            // 【核心修复】：点击药丸填入数据后，立刻触发 CDSS 拦截预警
             triggerDynamicCDSS();
         };
         pool.appendChild(chip);
@@ -288,6 +446,7 @@ window.saveOcrText = function(triggerNerReload) {
         window.SYSTEM_CONTEXT.entitiesData = updatedEntities;
         renderEntityHighlights(); triggerDynamicCDSS();
         bootstrap.Modal.getInstance(document.getElementById('editOcrTextModal')).hide();
+        showSystemToast('文本已更新，坐标重组完毕！');
     } else {
         bootstrap.Modal.getInstance(document.getElementById('editOcrTextModal')).hide();
         showLoading("微服务流转中：局部 NER 推理重载...");
@@ -298,6 +457,7 @@ window.saveOcrText = function(triggerNerReload) {
                 window.SYSTEM_CONTEXT.entitiesData = window.SYSTEM_CONTEXT.entitiesData.filter(e => e.section !== section && e['所属段落'] !== section);
                 window.SYSTEM_CONTEXT.entitiesData = window.SYSTEM_CONTEXT.entitiesData.concat(data.entities);
                 renderEntityHighlights(); triggerDynamicCDSS();
+                showSystemToast('神经推理重载成功！');
             } else { alert("神经推理失败: " + data.message); }
         }).catch(err => { hideLoading(); alert("网络异常"); });
     }
@@ -310,15 +470,17 @@ window.openEntityEditor = function(text, start, section, type, polarity) {
 };
 window.updateEntity = function() {
     const text = document.getElementById('edit-ent-text').value; const start = parseInt(document.getElementById('edit-ent-start').value); const section = document.getElementById('edit-ent-section').value;
-    const ent = window.SYSTEM_CONTEXT.entitiesData.find(e => e.text === text && e.start === start && (e.section === section || e['所属段落'] === section));
+    const ent = window.SYSTEM_CONTEXT.entitiesData.find(e => e.text === text && (e.section === section || e['所属段落'] === section));
     if (ent) { ent.type = document.getElementById('edit-ent-type').value; ent.polarity = document.getElementById('edit-ent-polarity').value; renderEntityHighlights(); triggerDynamicCDSS(); }
     bootstrap.Modal.getInstance(document.getElementById('editEntityModal')).hide();
+    showSystemToast('实体属性更新成功');
 };
 window.deleteEntity = function() {
     const text = document.getElementById('edit-ent-text').value; const start = parseInt(document.getElementById('edit-ent-start').value); const section = document.getElementById('edit-ent-section').value;
-    const index = window.SYSTEM_CONTEXT.entitiesData.findIndex(e => e.text === text && e.start === start && (e.section === section || e['所属段落'] === section));
+    const index = window.SYSTEM_CONTEXT.entitiesData.findIndex(e => e.text === text && (e.section === section || e['所属段落'] === section));
     if (index > -1) { window.SYSTEM_CONTEXT.entitiesData.splice(index, 1); renderEntityHighlights(); triggerDynamicCDSS(); }
     bootstrap.Modal.getInstance(document.getElementById('editEntityModal')).hide();
+    showSystemToast('已成功剔除该实体');
 };
 
 let currentSelectionText = "", currentSelectionSection = "";
@@ -358,11 +520,20 @@ window.triggerAddEntity = function() {
 };
 window.saveNewEntity = function() {
     const text = document.getElementById('add-ent-text').value; const section = document.getElementById('add-ent-section').value;
-    const rawText = window.SYSTEM_CONTEXT.emrData[section]; const startIdx = rawText.indexOf(text);
-    if (startIdx === -1) return alert("无法定位文本坐标");
+    const rawText = window.SYSTEM_CONTEXT.emrData[section]; 
+    const startIdx = rawText.indexOf(text);
+    if (startIdx === -1) return alert("坐标计算失败：你选中的文本不连续或不在此段落内。");
+    
+    // 注入实体树
     window.SYSTEM_CONTEXT.entitiesData.push({ text: text, type: document.getElementById('add-ent-type').value, polarity: document.getElementById('add-ent-polarity').value, start: startIdx, end: startIdx + text.length, section: section, score: 1.0 });
-    renderEntityHighlights(); triggerDynamicCDSS(); bootstrap.Modal.getInstance(document.getElementById('addEntityModal')).hide();
+    
+    // 重新渲染视图引擎
+    renderEntityHighlights(); 
+    triggerDynamicCDSS(); 
+    bootstrap.Modal.getInstance(document.getElementById('addEntityModal')).hide();
+    showSystemToast(`实体 "${text}" 注入成功！`);
 };
+
 window.triggerOcrCorrection = function() {
     document.getElementById('ocr-wrong-word').value = currentSelectionText; document.getElementById('ocr-right-word').value = ''; 
     new bootstrap.Modal(document.getElementById('ocrCorrectionModal')).show(); document.getElementById('selection-bubble').style.display = 'none';
@@ -371,7 +542,7 @@ function submitOcrCorrection(event) {
     const btn = event.currentTarget; btn.disabled = true;
     fetch('/api/ocr/correct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wrong: document.getElementById('ocr-wrong-word').value, right: document.getElementById('ocr-right-word').value })
     }).then(r=>r.json()).then(data => {
-        if(data.code===200) bootstrap.Modal.getInstance(document.getElementById('ocrCorrectionModal')).hide(); else alert("失败: "+data.message);
+        if(data.code===200) { bootstrap.Modal.getInstance(document.getElementById('ocrCorrectionModal')).hide(); showSystemToast('字典反哺成功！下次识别将生效。'); } else alert("失败: "+data.message);
     }).finally(() => btn.disabled = false);
 }
 
