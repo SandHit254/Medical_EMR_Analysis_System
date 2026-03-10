@@ -23,24 +23,19 @@ class StorageEngine:
             self.root = os.path.join(base_dir, root_cfg)
 
     def get_patient_tree(self) -> list:
-        """获取患者树状目录 (用于左侧栏导航)"""
         tree = []
         if not os.path.exists(self.root):
             return tree
-
-        # 按照最后活跃时间倒序
         pids = [d for d in os.listdir(self.root) if d.startswith("PID_")]
         pids.sort(
             key=lambda x: os.path.getmtime(os.path.join(self.root, x)), reverse=True
         )
-
         for pid in pids:
             hist = self.get_patient_history(pid)
             patient_dir = os.path.join(self.root, pid)
             visits = sorted(
                 [d for d in os.listdir(patient_dir) if d.startswith("V_")], reverse=True
             )
-
             visit_list = []
             for v in visits:
                 time_str = v.replace("V_", "")
@@ -49,7 +44,6 @@ class StorageEngine:
                 except:
                     formatted_time = time_str
                 visit_list.append({"visit_id": v, "time": formatted_time})
-
             tree.append(
                 {
                     "patient_id": pid,
@@ -61,28 +55,23 @@ class StorageEngine:
         return tree
 
     def search_records(self, query: str) -> list:
-        """多模态检索引擎：支持姓名、PID、以及提取出的医疗实体词"""
         results = []
         query = query.lower().strip()
         if not query or not os.path.exists(self.root):
             return results
-
         pids = [d for d in os.listdir(self.root) if d.startswith("PID_")]
         pids.sort(
             key=lambda x: os.path.getmtime(os.path.join(self.root, x)), reverse=True
         )
-
         for pid in pids:
             patient_dir = os.path.join(self.root, pid)
             visits = sorted(
                 [d for d in os.listdir(patient_dir) if d.startswith("V_")], reverse=True
             )
-
             for v in visits:
                 target_file = os.path.join(patient_dir, v, "06_human_verified.json")
                 if not os.path.exists(target_file):
                     target_file = os.path.join(patient_dir, v, "05_final_summary.json")
-
                 if os.path.exists(target_file):
                     with open(target_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
@@ -90,14 +79,10 @@ class StorageEngine:
                         name = emr.get("姓名", "")
                         ents = data.get("提取实体", [])
                         ent_texts = [e.get("text", "").lower() for e in ents]
-
                         match_pid = query in pid.lower()
                         match_name = query in name.lower()
-
-                        # 在所有提取出的实体中检索
                         matched_ents = [t for t in ent_texts if query in t]
                         match_ent = len(matched_ents) > 0
-
                         if match_pid or match_name or match_ent:
                             tags = []
                             if match_name:
@@ -106,7 +91,6 @@ class StorageEngine:
                                 tags.append("PID匹配")
                             if match_ent:
                                 tags.append(f"实体命中: {matched_ents[0]}")
-
                             time_str = v.replace("V_", "")
                             try:
                                 formatted_time = (
@@ -114,14 +98,13 @@ class StorageEngine:
                                 )
                             except:
                                 formatted_time = time_str
-
                             results.append(
                                 {
                                     "patient_id": pid,
                                     "visit_id": v,
                                     "name": name or "未知",
                                     "time": formatted_time,
-                                    "tags": tags[:2],  # 最多展示两个高亮徽章
+                                    "tags": tags[:2],
                                 }
                             )
         return results
@@ -193,8 +176,11 @@ class StorageEngine:
         visit_dir = os.path.join(self.root, patient_folder, f"V_{timestamp}")
         try:
             os.makedirs(visit_dir, exist_ok=True)
-            if os.path.exists(image_path):
+
+            # 【核心修复】：兼容纯文本直通模式，若无 image_path 则跳过拷贝环节
+            if image_path and os.path.exists(image_path):
                 shutil.copy(image_path, os.path.join(visit_dir, "01_source.jpg"))
+
             with open(
                 os.path.join(visit_dir, "02_ocr_raw.txt"), "w", encoding="utf-8"
             ) as f:

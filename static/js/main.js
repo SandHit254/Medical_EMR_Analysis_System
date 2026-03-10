@@ -6,7 +6,6 @@ function showLoading(text="神经引擎介入中...") { document.getElementById(
 function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
 function escapeHtml(text) { if (!text) return ""; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
-// 【新增交互】：全局 Toast 提示器
 function showSystemToast(msg, isError=false) {
     const toastEl = document.getElementById('systemToast');
     const toastBody = document.getElementById('toast-message');
@@ -108,9 +107,7 @@ document.addEventListener("DOMContentLoaded", function() {
     let savedPid = sessionStorage.getItem('active_pid');
     let savedPinfo = sessionStorage.getItem('active_pinfo');
 
-    // 只有在首页 (未载入病历) 的情况下才触发身份网关
     if (!hasRecord && window.location.pathname === '/') {
-        // 如果缓存里有上次选中的患者，静默恢复状态
         if (savedPid && savedPinfo) {
             setPatientContext(savedPid, JSON.parse(savedPinfo), true);
         } else {
@@ -118,18 +115,17 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
-    const uploadForm = document.getElementById('upload-form');
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', function(e) {
-            const patientIdInput = document.getElementById('upload-patient-id');
-            if (!patientIdInput.value.trim()) {
+    document.querySelectorAll('.upload-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const patientIdInput = this.querySelector('.sync-pid');
+            if (!patientIdInput || !patientIdInput.value.trim()) {
                 e.preventDefault(); 
                 openEmpiGateway();
             } else {
                 showLoading('神经链路分析中，请稍候...');
             }
         });
-    }
+    });
 
     document.querySelectorAll('.emr-input-target').forEach(el => {
         el.addEventListener('input', function() {
@@ -142,7 +138,6 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 
 window.resetWorkstation = function() {
-    // 彻底清除会话缓存并强制重定向回首页以释放前一个患者的上下文
     sessionStorage.removeItem('active_pid');
     sessionStorage.removeItem('active_pinfo');
     window.location.href = '/';
@@ -170,9 +165,9 @@ window.selectPatient = function() {
     const pid = select.value;
     if(!pid) return alert('请选择有效的患者标识符，或切换右侧 Tab 建立新患者！');
     
-    document.getElementById('upload-patient-name').value = '';
-    document.getElementById('upload-patient-gender').value = '';
-    document.getElementById('upload-patient-age').value = '';
+    document.getElementById('empi-new-name').value = '';
+    document.getElementById('empi-new-gender').value = '';
+    document.getElementById('empi-new-age').value = '';
 
     const opt = select.options[select.selectedIndex];
     const info = { name: opt.dataset.name, gender: opt.dataset.gender, age: opt.dataset.age };
@@ -186,25 +181,24 @@ window.createNewPatient = function() {
     
     fetch('/api/patients/new').then(r=>r.json()).then(data => {
         setPatientContext(data.patient_id, { name: name || '待提取', gender: gender || '-', age: age || '-' });
-        document.getElementById('upload-patient-name').value = name;
-        document.getElementById('upload-patient-gender').value = gender;
-        document.getElementById('upload-patient-age').value = age;
     });
 };
 
 function setPatientContext(pid, info, skipRedirect = false) {
-    // 保存至浏览器缓存
     sessionStorage.setItem('active_pid', pid);
     sessionStorage.setItem('active_pinfo', JSON.stringify(info));
 
-    // 【核心修复】：如果在“历史病历查看视图”中切换了患者，强制跳回主页开启全新诊断流！
     if (window.location.pathname.startsWith('/view/') && !skipRedirect) {
         window.location.href = '/';
         return;
     }
 
     document.getElementById('current-patient-id-display').innerText = pid;
-    document.getElementById('upload-patient-id').value = pid;
+    
+    document.querySelectorAll('.sync-pid').forEach(el => el.value = pid);
+    document.querySelectorAll('.sync-pname').forEach(el => el.value = info.name);
+    document.querySelectorAll('.sync-pgender').forEach(el => el.value = info.gender);
+    document.querySelectorAll('.sync-page').forEach(el => el.value = info.age);
     
     const msg = document.getElementById('upload-lock-msg');
     if (msg) msg.style.display = 'none';
@@ -220,15 +214,19 @@ function setPatientContext(pid, info, skipRedirect = false) {
     
     const idleStateView = document.getElementById('idle-state-view');
     if (idleStateView) {
-        idleStateView.className = "glass-card h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-success bg-opacity-10";
+        idleStateView.className = "glass-card flex-grow-1 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-success bg-opacity-10";
         idleStateView.style.borderColor = "#86efac";
         const idleIcon = document.getElementById('idle-icon');
         if(idleIcon) idleIcon.className = "bi bi-clipboard2-check-fill text-success opacity-75";
         const idleTitle = document.getElementById('idle-title');
         if(idleTitle) { idleTitle.innerText = "患者档案已关联，工作站就绪"; idleTitle.className = "fw-bold text-success mb-2 mt-3"; }
         const idleDesc = document.getElementById('idle-desc');
-        if(idleDesc) { idleDesc.innerHTML = `已锁定患者 <strong>${pid}</strong>，请在左侧上传病历影像启动分析管线。`; idleDesc.className = "text-success opacity-75 mx-auto"; }
+        if(idleDesc) { idleDesc.innerHTML = `已锁定患者 <strong>${pid}</strong>，请在左侧开启分析管线。`; idleDesc.className = "text-success opacity-75 mx-auto"; }
     }
+
+    // 【核心修复】：随时展示隐藏在 DOM 中的“结束接诊”容器
+    const resetContainer = document.getElementById('reset-workspace-container');
+    if (resetContainer) resetContainer.style.display = 'block';
     
     const modalEl = document.getElementById('empiModal');
     if (modalEl) {
@@ -252,7 +250,7 @@ document.addEventListener('focusin', function(e) {
 
 
 /* ====================================================================
- * 【核心防漂移渲染引擎】：不再被 Tokenizer 的坐标错位所困扰
+ * 核心渲染引擎
  * ==================================================================== */
 function renderEntityHighlights() {
     const context = window.SYSTEM_CONTEXT;
@@ -265,39 +263,26 @@ function renderEntityHighlights() {
         const rawText = context.emrData[sectionName];
         if (!rawText || rawText.trim() === '') return;
         
-        // 获取原始提取出的实体
         const rawEntities = context.entitiesData.filter(ent => ent.section === sectionName || ent['所属段落'] === sectionName);
-        
-        // 1. 动态探针寻址算法：获取词汇在当前文本中的真实绝对坐标
         let validEntities = [];
         let searchCursor = 0;
         
-        // 优先按照后端模型给出的起始位置排个大概的顺序
         const sortedRaw = [...rawEntities].sort((a, b) => a.start - b.start);
         
         sortedRaw.forEach(ent => {
-            // 沿着指针往后找
             let actualStart = rawText.indexOf(ent.text, searchCursor);
             if (actualStart === -1) {
-                // 极端容错：如果后端由于识别乱序导致错过了，从头重新扫描一次
                 actualStart = rawText.indexOf(ent.text, 0);
             }
             
             if (actualStart !== -1) {
-                validEntities.push({
-                    ...ent,
-                    actualStart: actualStart,
-                    actualEnd: actualStart + ent.text.length
-                });
-                // 推进指针，防止如果有两个相同的“疼痛”，被错误地映射到同一个位置上
+                validEntities.push({ ...ent, actualStart: actualStart, actualEnd: actualStart + ent.text.length });
                 searchCursor = actualStart + ent.text.length;
             }
         });
 
-        // 2. 按真实物理位置进行硬排序
         validEntities.sort((a, b) => a.actualStart - b.actualStart);
 
-        // 3. 消解叠加冲突 (抛弃重叠或被包裹的次级实体)
         let finalEntities = [];
         let currentEnd = 0;
         validEntities.forEach(ent => {
@@ -307,12 +292,10 @@ function renderEntityHighlights() {
             }
         });
 
-        // 4. 严谨拼接：绝对保证所有未被提取的文本 (比如“右下后牙”) 被原封不动地渲染出来
         let htmlStream = "";
         let cursor = 0;
 
         finalEntities.forEach(ent => {
-            // 拼接入被跳过的普通文本
             htmlStream += escapeHtml(rawText.substring(cursor, ent.actualStart));
             
             const safeClass = ent.type.replace(/\//g, '_');
@@ -320,13 +303,11 @@ function renderEntityHighlights() {
             const polarityStyle = isNegative ? 'opacity: 0.5; text-decoration: line-through;' : '';
             const polarityBadge = isNegative ? '<span style="color:#ef4444;font-size:0.6rem;margin-left:4px;">(排除)</span>' : '';
 
-            // 渲染动态气泡标签
             htmlStream += `<span class="entity-box type-${safeClass}" style="${polarityStyle} cursor: pointer; border-radius: 4px; padding: 2px 4px; transition: 0.2s;" onclick="openEntityEditor('${escapeHtml(ent.text)}', ${ent.actualStart}, '${sectionName}', '${ent.type}', '${ent.polarity}')"><span class="entity-text fw-bold">${escapeHtml(ent.text)}</span><span class="entity-label">${escapeHtml(ent.type)}${polarityBadge}</span></span>`;
             
             cursor = ent.actualEnd;
         });
         
-        // 拼接收尾文本
         htmlStream += escapeHtml(rawText.substring(cursor));
 
         const sectionWrapper = document.createElement('div');
@@ -411,7 +392,7 @@ function triggerDynamicCDSS() {
         const container = document.getElementById('cdss-alert-container');
         if (data.code === 200 && data.warnings && data.warnings.length > 0) {
             let listHtml = data.warnings.map(w => `<li class="mb-1">${w}</li>`).join('');
-            container.innerHTML = `<div class="alert shadow-sm border-0 mb-3 rounded" style="background-color: #fef2f2; border-left: 6px solid #ef4444 !important; animation: pulse-red 2s infinite;"><div class="d-flex align-items-center mb-2"><i class="bi bi-shield-fill-x text-danger fs-4 me-2"></i><h6 class="fw-bold text-danger m-0">临床决策支持系统 (CDSS) 实时预警</h6></div><ul class="mb-0 small text-danger fw-bold" style="list-style-type: square;">${listHtml}</ul></div>`;
+            container.innerHTML = `<div class="alert shadow-sm border-0 m-0 rounded" style="background-color: #fef2f2; border-left: 6px solid #ef4444 !important; animation: pulse-red 2s infinite;"><div class="d-flex align-items-center mb-2"><i class="bi bi-shield-fill-x text-danger fs-4 me-2"></i><h6 class="fw-bold text-danger m-0">临床决策支持系统 (CDSS) 实时预警</h6></div><ul class="mb-0 small text-danger fw-bold" style="list-style-type: square;">${listHtml}</ul></div>`;
         } else { container.innerHTML = ""; }
     });
 }
@@ -524,10 +505,8 @@ window.saveNewEntity = function() {
     const startIdx = rawText.indexOf(text);
     if (startIdx === -1) return alert("坐标计算失败：你选中的文本不连续或不在此段落内。");
     
-    // 注入实体树
     window.SYSTEM_CONTEXT.entitiesData.push({ text: text, type: document.getElementById('add-ent-type').value, polarity: document.getElementById('add-ent-polarity').value, start: startIdx, end: startIdx + text.length, section: section, score: 1.0 });
     
-    // 重新渲染视图引擎
     renderEntityHighlights(); 
     triggerDynamicCDSS(); 
     bootstrap.Modal.getInstance(document.getElementById('addEntityModal')).hide();

@@ -1,7 +1,5 @@
 """
 模块名称：病历分析系统主入口
-功能描述：作为系统的主调度器，负责初始化配置模块、构建业务流管线，
-         管理各处理层之间的参数流转并负责最外层异常捕获与抛出。
 """
 
 import os
@@ -26,41 +24,51 @@ def generate_patient_id() -> str:
 
 
 def run_medical_pipeline(
-    image_path: str, patient_id: str = None, patient_info: dict = None
+    image_path: str = None,
+    raw_text_input: str = None,
+    patient_id: str = None,
+    patient_info: dict = None,
 ) -> str:
-    """执行管线：融合 OCR 提取、EMPI 历史继承与前端手动输入"""
+    """执行管线：融合 OCR 感知与纯文本直通双模态"""
     logger.info("=" * 50)
-    logger.info(f"开启病历分析管线，目标文件: {image_path}")
+    logger.info(f"开启双模态分析管线")
     try:
-        ocr_engine = OCREngine()
         ner_engine = NEREngine()
         processor = DataProcessor()
         storage = StorageEngine()
-
         pid = patient_id if patient_id else generate_patient_id()
 
-        raw_text = ocr_engine.extract(image_path)
+        if raw_text_input is not None and raw_text_input.strip():
+            logger.info("⚡ 命中纯文本模式：跳过 OCR 算子，直通结构化认知层")
+            raw_text = raw_text_input.strip()
+        elif image_path:
+            logger.info(f"📸 命中图像模式：唤醒 OCR 算子解析 {image_path}")
+            ocr_engine = OCREngine()
+            raw_text = ocr_engine.extract(image_path)
+        else:
+            raise MedicalSystemError("管线阻断：必须提供影像或纯文本输入之一")
+
         cleaned_text = processor.clean_text(raw_text)
         clinical_sections = processor.extract_clinical_sections(cleaned_text)
 
-        # =========================================================
-        # EMPI 历史档案与手动输入预设信息继承机制
-        # =========================================================
-        history = storage.get_patient_history(pid)
+        # 【核心修复 1】：纯文本兜底容错机制
+        # 如果一段文本没有任何诸如“主诉：”的引导词，它会被正则全部丢弃。
+        # 这里进行兜底拦截，如果全为空，直接包装为“综合病历文本”强制送入 NER 引擎。
+        has_extracted_content = any(bool(v.strip()) for v in clinical_sections.values())
+        if not has_extracted_content and cleaned_text.strip():
+            clinical_sections["综合病历文本"] = cleaned_text.strip()
 
-        # 1. 基础信息注入 (优先级：手动输入 > 历史档案 > OCR识别)
+        # EMPI 历史继承机制
+        history = storage.get_patient_history(pid)
         for key in ["姓名", "性别", "年龄"]:
             val = ""
             if patient_info and patient_info.get(key):
                 val = patient_info.get(key)
             elif history.get(key):
                 val = history.get(key)
-
-            # 若已有可靠输入，强行覆盖 OCR 可能产生的杂乱文本
             if val:
                 clinical_sections[key] = val
 
-        # 2. 既往史与过敏史拼接继承 (防遗漏机制)
         hist_allergy = history.get("过敏史", "").strip()
         if hist_allergy:
             current_allergy = clinical_sections.get("过敏史", "").strip()
@@ -74,8 +82,8 @@ def run_medical_pipeline(
             current_past = clinical_sections.get("既往史", "").strip()
             if hist_past not in current_past:
                 clinical_sections["既往史"] = f"{current_past}，{hist_past}".strip("，")
-        # =========================================================
 
+        # NER 推理切片
         chunked_results = []
         all_chunks_text = []
         all_aggregated_issues = []
@@ -163,7 +171,6 @@ def run_medical_pipeline(
 
 
 def run_partial_ner(section_name: str, content: str) -> list:
-    """局部神经推理微服务（热重载模式）"""
     logger.info(f"触发动态流转：正在重载 [{section_name}] 段落的神经推理管线...")
     ner_engine = NEREngine()
     processor = DataProcessor()

@@ -4,604 +4,261 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>医疗实体智能感知与复核中枢</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}"
-    />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
     <style>
-      @keyframes pulse-red {
-        0% {
-          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
-        }
-        70% {
-          box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-        }
-      }
-      ::selection {
-        background: rgba(13, 110, 253, 0.2);
-      }
-      .bubble-enter {
-        animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-      }
-      @keyframes popIn {
-        from {
-          opacity: 0;
-          transform: scale(0.8) translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: scale(1) translateY(0);
-        }
-      }
-      .hide-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .hide-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-      .active-input-field {
-        border-color: var(--primary-color) !important;
-        box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15) !important;
-        background-color: #f8fafc !important;
-      }
-      .diagnosis-chip {
-        cursor: pointer;
-        transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-      }
-      .diagnosis-chip:hover {
-        transform: scale(1.02) translateY(-2px);
-        background-color: #dcfce7 !important;
-        box-shadow: 0 4px 8px rgba(34, 197, 94, 0.15) !important;
-      }
-      .diagnosis-chip:active {
-        transform: scale(0.98);
-      }
-      .visit-item:hover {
-        background-color: #f0fdf4 !important;
-      }
-      .lib-card-hover:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08) !important;
-        border-color: #93c5fd !important;
-      }
+      @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+      ::selection { background: rgba(13, 110, 253, 0.2); }
+      .bubble-enter { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+      @keyframes popIn { from { opacity: 0; transform: scale(0.8) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+      .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .active-input-field { border-color: var(--primary-color) !important; box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15) !important; background-color: #f8fafc !important; }
+      .diagnosis-chip { cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); }
+      .diagnosis-chip:hover { transform: scale(1.02) translateY(-2px); background-color: #dcfce7 !important; box-shadow: 0 4px 8px rgba(34, 197, 94, 0.15) !important; }
+      .diagnosis-chip:active { transform: scale(0.98); }
+      .visit-item:hover { background-color: #f0fdf4 !important; }
+      .lib-card-hover:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; border-color: #93c5fd !important;}
     </style>
   </head>
   <body class="container-fluid px-xl-4 pb-5">
-    <div
-      class="toast-container position-fixed bottom-0 end-0 p-4"
-      style="z-index: 1080"
-    >
-      <div
-        id="systemToast"
-        class="toast align-items-center text-white bg-success border-0 shadow-lg"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
-        <div class="d-flex">
-          <div class="toast-body fw-bold" id="toast-message">
-            <i class="bi bi-check-circle me-2"></i>操作成功
-          </div>
-          <button
-            type="button"
-            class="btn-close btn-close-white me-2 m-auto"
-            data-bs-dismiss="toast"
-          ></button>
+    
+    <div class="toast-container position-fixed bottom-0 end-0 p-4" style="z-index: 1080;">
+        <div id="systemToast" class="toast align-items-center text-white bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body fw-bold" id="toast-message"><i class="bi bi-check-circle me-2"></i>操作成功</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
         </div>
-      </div>
     </div>
 
-    <div
-      id="loading-overlay"
-      style="
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255, 255, 255, 0.8);
-        z-index: 9999;
-        align-items: center;
-        justify-content: center;
-      "
-    >
+    <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); z-index: 9999; align-items: center; justify-content: center;">
       <div class="text-center">
-        <div
-          class="spinner-border text-primary mb-3"
-          style="width: 3rem; height: 3rem"
-          role="status"
-        ></div>
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem" role="status"></div>
         <h5 class="fw-bold text-dark" id="loading-text">神经引擎介入中...</h5>
         <p class="text-muted small">正在执行张量运算，请稍候</p>
       </div>
     </div>
 
-    <header
-      class="page-header mt-4 mb-4 d-flex justify-content-between align-items-center"
-    >
+    <header class="page-header mt-4 mb-4 d-flex justify-content-between align-items-center">
       <div>
-        <h2 class="m-0">
-          <i class="bi bi-cpu-fill text-primary"></i> 医疗实体智能感知与复核中枢
-        </h2>
-        <p
-          class="text-muted mt-2 mb-0"
-          style="font-weight: 400; font-size: 1rem"
-        >
-          基于深度学习的高精度临床数据结构化管线
-        </p>
+        <h2 class="m-0"><i class="bi bi-cpu-fill text-primary"></i> 医疗实体智能感知与复核中枢</h2>
+        <p class="text-muted mt-2 mb-0" style="font-weight: 400; font-size: 1rem">基于深度学习的高精度临床数据结构化管线</p>
       </div>
-      <button
-        class="btn btn-outline-primary shadow-sm rounded-pill px-4"
-        onclick="openSettingsConsole()"
-      >
+      <button class="btn btn-outline-primary shadow-sm rounded-pill px-4" onclick="openSettingsConsole()">
         <i class="bi bi-sliders"></i> 全局参数与规则控制台
       </button>
     </header>
 
     <div class="row g-4 align-items-start">
       <div class="col-xl-3 col-lg-4 d-flex flex-column gap-3">
+        
         <div class="glass-card p-3 shadow-sm border rounded bg-white">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="fw-bold text-dark m-0">
-                <i class="bi bi-person-bounding-box text-primary"></i> EMPI
-                身份网关
-              </h6>
-              <span
-                class="fw-bold fs-6 text-primary"
-                id="current-patient-id-display"
-                >{% if record %}{{ record.get('患者ID') }}{% else %}未确立身份{%
-                endif %}</span
-              >
+              <h6 class="fw-bold text-dark m-0"><i class="bi bi-person-bounding-box text-primary"></i> EMPI 身份网关</h6>
+              <span class="fw-bold fs-6 text-primary" id="current-patient-id-display">{% if record %}{{ record.get('患者ID') }}{% else %}未确立身份{% endif %}</span>
             </div>
-            <button
-              class="btn btn-sm btn-outline-secondary"
-              onclick="openEmpiGateway()"
-            >
-              <i class="bi bi-arrow-left-right"></i> 切换
-            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="openEmpiGateway()"><i class="bi bi-arrow-left-right"></i> 切换</button>
           </div>
         </div>
 
-        <div
-          class="glass-card p-4 shadow-sm border rounded position-relative bg-white"
-        >
-          <h6 class="fw-bold text-dark mb-3">
-            <i class="bi bi-cloud-arrow-up"></i> 影像采集节点
-          </h6>
-          <form
-            id="upload-form"
-            action="/analyze"
-            method="post"
-            enctype="multipart/form-data"
-          >
-            <input
-              type="hidden"
-              name="patient_id"
-              id="upload-patient-id"
-              value="{% if record %}{{ record.get('患者ID') }}{% endif %}"
-            />
-            <input
-              type="hidden"
-              name="patient_name"
-              id="upload-patient-name"
-              value=""
-            />
-            <input
-              type="hidden"
-              name="patient_gender"
-              id="upload-patient-gender"
-              value=""
-            />
-            <input
-              type="hidden"
-              name="patient_age"
-              id="upload-patient-age"
-              value=""
-            />
+        <div class="glass-card p-4 shadow-sm border rounded position-relative bg-white">
+          <h6 class="fw-bold text-dark mb-3"><i class="bi bi-diagram-2 text-primary"></i> 多模态采集解析流</h6>
+          
+          <ul class="nav nav-tabs nav-fill mb-3 small border-0" role="tablist">
+              <li class="nav-item"><button class="nav-link active py-2 fw-bold bg-light shadow-sm me-1 rounded" data-bs-toggle="tab" data-bs-target="#mode-image" type="button"><i class="bi bi-camera text-primary"></i> 影像感知</button></li>
+              <li class="nav-item"><button class="nav-link py-2 fw-bold bg-light shadow-sm ms-1 rounded" data-bs-toggle="tab" data-bs-target="#mode-text" type="button"><i class="bi bi-file-earmark-word text-success"></i> 文本直通</button></li>
+          </ul>
 
-            <div class="mb-3">
-              <input
-                class="form-control form-control-sm"
-                type="file"
-                name="image"
-                accept="image/*"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              id="upload-submit-btn"
-              class="btn btn-primary w-100 fw-bold"
-            >
-              <i class="bi bi-lightning-charge"></i> 启动 AI 分析流
-            </button>
-            {% if not record %}
-            <div
-              id="upload-lock-msg"
-              class="text-warning small mt-2 text-center"
-            >
-              <i class="bi bi-info-circle-fill"></i> 若未选患者将自动触发弹窗
-            </div>
-            {% endif %}
-          </form>
+          <div class="tab-content">
+              <div class="tab-pane fade show active" id="mode-image">
+                  <form class="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="patient_id" class="sync-pid" value="{% if record %}{{ record.get('患者ID') }}{% endif %}" />
+                    <input type="hidden" name="patient_name" class="sync-pname" value="" />
+                    <input type="hidden" name="patient_gender" class="sync-pgender" value="" />
+                    <input type="hidden" name="patient_age" class="sync-page" value="" />
+                    <div class="mb-3">
+                        <label class="form-label small text-muted fw-bold">支持图片及扫描件 (.jpg, .pdf等)</label>
+                        <input class="form-control form-control-sm border-primary" type="file" name="image" accept="image/*, application/pdf" required />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold upload-submit-btn"><i class="bi bi-lightning-charge"></i> 启动图文感知流</button>
+                  </form>
+              </div>
+              
+              <div class="tab-pane fade" id="mode-text">
+                  <form class="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="patient_id" class="sync-pid" value="{% if record %}{{ record.get('患者ID') }}{% endif %}" />
+                    <input type="hidden" name="patient_name" class="sync-pname" value="" />
+                    <input type="hidden" name="patient_gender" class="sync-pgender" value="" />
+                    <input type="hidden" name="patient_age" class="sync-page" value="" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label small text-muted fw-bold">直接上传文档 (.txt, .docx)</label>
+                        <input class="form-control form-control-sm border-success mb-2" type="file" name="text_file" accept=".txt, .docx" />
+                        <label class="form-label small text-muted fw-bold">或手动粘贴纯文本病历</label>
+                        <textarea class="form-control form-control-sm bg-light border-success" name="raw_text" rows="4" placeholder="在此粘贴... (两者可同时使用，系统将自动合并)"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 fw-bold upload-submit-btn"><i class="bi bi-fast-forward-circle"></i> 直通结构化认知层</button>
+                  </form>
+              </div>
+          </div>
+
+          {% if not record %}
+          <div id="upload-lock-msg" class="text-warning small mt-3 text-center fw-bold"><i class="bi bi-info-circle-fill"></i> 点击启动若未选患者，将自动弹窗拦截</div>
+          {% endif %}
         </div>
 
-        {% if error %}
-        <div
-          class="alert alert-danger glass-card border-0 small shadow-sm mb-0"
-          style="background: rgba(254, 226, 226, 0.8)"
-        >
-          <strong><i class="bi bi-exclamation-triangle"></i> 阻断提示：</strong
-          ><br />{{ error }}
-        </div>
-        {% endif %} {% if record %}
+        {% if error %}<div class="alert alert-danger glass-card border-0 small shadow-sm mb-0" style="background: rgba(254, 226, 226, 0.8)"><strong><i class="bi bi-exclamation-triangle"></i> 阻断提示：</strong><br />{{ error }}</div>{% endif %} 
+        
+        {% if record %}
         <div class="glass-card p-4 shadow-sm border rounded bg-white">
-          <h6 class="fw-bold text-dark mb-3">
-            <i class="bi bi-hdd-network"></i> 归档元数据
-          </h6>
-          <div
-            class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2"
-          >
-            <span class="text-muted small">就诊流水</span
-            ><span class="fw-bold text-dark small" id="meta-visit-id"
-              >{{ record.get('就诊编号', '缺失') }}</span
-            >
-          </div>
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="text-muted small">患者标识</span
-            ><span class="fw-bold text-dark small" id="meta-patient-id"
-              >{{ record.get('患者ID', '缺失') }}</span
-            >
-          </div>
+          <h6 class="fw-bold text-dark mb-3"><i class="bi bi-hdd-network"></i> 归档元数据</h6>
+          <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2"><span class="text-muted small">就诊流水</span><span class="fw-bold text-dark small" id="meta-visit-id">{{ record.get('就诊编号', '缺失') }}</span></div>
+          <div class="d-flex justify-content-between align-items-center"><span class="text-muted small">患者标识</span><span class="fw-bold text-dark small" id="meta-patient-id">{{ record.get('患者ID', '缺失') }}</span></div>
         </div>
 
-        <div
-          class="glass-card p-3 shadow-sm border rounded text-center bg-white"
-        >
-          <button
-            type="button"
-            onclick="resetWorkstation()"
-            class="btn btn-outline-danger w-100 fw-bold"
-          >
-            <i class="bi bi-door-closed"></i> 结束接诊 / 重启
-          </button>
+        <div id="reset-workspace-container" class="glass-card p-3 shadow-sm border rounded text-center bg-white" {% if not record %}style="display: none;"{% endif %}>
+            <button type="button" onclick="resetWorkstation()" class="btn btn-outline-danger w-100 fw-bold"><i class="bi bi-door-closed"></i> 结束接诊 / 重启工作站</button>
         </div>
         {% endif %}
 
-        <div
-          class="glass-card p-3 shadow-sm border rounded bg-white d-flex flex-column flex-grow-1"
-        >
-          <h6 class="fw-bold text-dark mb-3">
-            <i class="bi bi-journal-medical text-primary"></i> 电子病历库检索
-          </h6>
+        <div class="glass-card p-3 shadow-sm border rounded bg-white d-flex flex-column flex-grow-1">
+          <h6 class="fw-bold text-dark mb-3"><i class="bi bi-journal-medical text-primary"></i> 电子病历库检索</h6>
           <div class="input-group mb-3 shadow-sm rounded">
-            <input
-              type="text"
-              class="form-control form-control-sm bg-light border-0"
-              id="library-search-input"
-              placeholder="搜姓名/PID/实体..."
-              onkeypress="if (event.keyCode == 13) executeLibrarySearch();"
-            />
-            <button
-              class="btn btn-primary btn-sm px-3"
-              onclick="executeLibrarySearch()"
-            >
-              <i class="bi bi-search"></i>
-            </button>
+              <input type="text" class="form-control form-control-sm bg-light border-0" id="library-search-input" placeholder="搜姓名/PID/实体..." onkeypress="if(event.keyCode==13) executeLibrarySearch()">
+              <button class="btn btn-primary btn-sm px-3" onclick="executeLibrarySearch()"><i class="bi bi-search"></i></button>
           </div>
           <ul class="nav nav-pills nav-fill mb-2 small" role="tablist">
-            <li class="nav-item">
-              <button
-                class="nav-link active py-1 fw-bold"
-                data-bs-toggle="tab"
-                data-bs-target="#lib-tree"
-                type="button"
-              >
-                <i class="bi bi-diagram-3"></i> 目录树
-              </button>
-            </li>
-            <li class="nav-item">
-              <button
-                class="nav-link py-1 fw-bold"
-                data-bs-toggle="tab"
-                data-bs-target="#lib-search"
-                type="button"
-              >
-                <i class="bi bi-funnel"></i> 匹配结果
-              </button>
-            </li>
+              <li class="nav-item"><button class="nav-link active py-1 fw-bold" data-bs-toggle="tab" data-bs-target="#lib-tree" type="button"><i class="bi bi-diagram-3"></i> 目录树</button></li>
+              <li class="nav-item"><button class="nav-link py-1 fw-bold" data-bs-toggle="tab" data-bs-target="#lib-search" type="button"><i class="bi bi-funnel"></i> 匹配结果</button></li>
           </ul>
-          <div
-            class="tab-content flex-grow-1 overflow-auto hide-scrollbar"
-            style="max-height: 40vh; min-height: 200px"
-          >
-            <div class="tab-pane fade show active" id="lib-tree">
-              <div id="patient-tree-container" class="small mt-2">
-                <div class="text-center text-muted mt-5">
-                  <span class="spinner-border spinner-border-sm"></span>
-                  载入中...
-                </div>
+          <div class="tab-content flex-grow-1 overflow-auto hide-scrollbar" style="max-height: 40vh; min-height: 200px;">
+              <div class="tab-pane fade show active" id="lib-tree">
+                  <div id="patient-tree-container" class="small mt-2"><div class="text-center text-muted mt-5"><span class="spinner-border spinner-border-sm"></span> 载入中...</div></div>
               </div>
-            </div>
-            <div class="tab-pane fade" id="lib-search">
-              <div id="patient-search-container" class="small mt-2">
-                <div
-                  class="alert alert-light border text-muted text-center mt-2 p-2"
-                >
-                  请在上方输入检索词。
-                </div>
+              <div class="tab-pane fade" id="lib-search">
+                  <div id="patient-search-container" class="small mt-2"><div class="alert alert-light border text-muted text-center mt-2 p-2">请在上方输入检索词。</div></div>
               </div>
-            </div>
           </div>
         </div>
       </div>
 
       <div class="col-xl-9 col-lg-8 d-flex flex-column gap-3">
+        
         {% if record %}
-        <div
-          class="alert shadow-sm border m-0 d-flex justify-content-between align-items-center bg-white rounded"
-        >
+        <div class="alert shadow-sm border m-0 d-flex justify-content-between align-items-center bg-white rounded">
           <div>
-            <span class="badge bg-primary me-3 px-3 py-2 fs-6 shadow-sm"
-              ><i class="bi bi-person-fill"></i> 正在处理当前患者</span
-            >
-            <strong class="fs-4 me-4 text-dark"
-              >{{ record.get('结构化病历', {}).get('姓名', '未知') }}</strong
-            >
-            <span class="text-muted fw-bold me-3"
-              ><i class="bi bi-gender-ambiguous text-primary"></i> {{
-              record.get('结构化病历', {}).get('性别', '-') }}</span
-            >
-            <span class="text-muted fw-bold me-3"
-              ><i class="bi bi-calendar-event text-primary"></i> {{
-              record.get('结构化病历', {}).get('年龄', '-') }}</span
-            >
+            <span class="badge bg-primary me-3 px-3 py-2 fs-6 shadow-sm"><i class="bi bi-person-fill"></i> 正在处理当前患者</span>
+            <strong class="fs-4 me-4 text-dark">{{ record.get('结构化病历', {}).get('姓名', '未知') }}</strong>
+            <span class="text-muted fw-bold me-3"><i class="bi bi-gender-ambiguous text-primary"></i> {{ record.get('结构化病历', {}).get('性别', '-') }}</span>
+            <span class="text-muted fw-bold me-3"><i class="bi bi-calendar-event text-primary"></i> {{ record.get('结构化病历', {}).get('年龄', '-') }}</span>
           </div>
-          <div class="text-muted fw-bold bg-light px-3 py-1 rounded border">
-            <i class="bi bi-upc-scan"></i> {{ record.get('患者ID') }}
-          </div>
+          <div class="text-muted fw-bold bg-light px-3 py-1 rounded border"><i class="bi bi-upc-scan"></i> {{ record.get('患者ID') }}</div>
         </div>
         {% else %}
-        <div
-          id="dynamic-patient-banner"
-          class="alert shadow-sm border m-0 justify-content-between align-items-center bg-white rounded"
-          style="display: none !important"
-        >
+        <div id="dynamic-patient-banner" class="alert shadow-sm border m-0 justify-content-between align-items-center bg-white rounded" style="display: none !important">
           <div>
-            <span
-              class="badge bg-warning text-dark me-3 px-3 py-2 fs-6 shadow-sm"
-              ><i class="bi bi-person-fill"></i> 待处理患者</span
-            >
+            <span class="badge bg-warning text-dark me-3 px-3 py-2 fs-6 shadow-sm"><i class="bi bi-person-fill"></i> 待处理患者</span>
             <strong id="dyn-banner-name" class="fs-4 me-4 text-dark"></strong>
-            <span class="text-muted fw-bold me-3"
-              ><i class="bi bi-gender-ambiguous text-primary"></i>
-              <span id="dyn-banner-gender"></span
-            ></span>
-            <span class="text-muted fw-bold me-3"
-              ><i class="bi bi-calendar-event text-primary"></i>
-              <span id="dyn-banner-age"></span
-            ></span>
+            <span class="text-muted fw-bold me-3"><i class="bi bi-gender-ambiguous text-primary"></i> <span id="dyn-banner-gender"></span></span>
+            <span class="text-muted fw-bold me-3"><i class="bi bi-calendar-event text-primary"></i> <span id="dyn-banner-age"></span></span>
           </div>
-          <div class="text-muted fw-bold bg-light px-3 py-1 rounded border">
-            <i class="bi bi-upc-scan"></i> <span id="dyn-banner-pid"></span>
-          </div>
+          <div class="text-muted fw-bold bg-light px-3 py-1 rounded border"><i class="bi bi-upc-scan"></i> <span id="dyn-banner-pid"></span></div>
         </div>
-        {% endif %}
-
+        {% endif %} 
+        
         <div id="cdss-alert-container">
           {% if record and record.get('CDSS预警') %}
-          <div
-            class="alert shadow-sm border-0 m-0 rounded"
-            style="
-              background-color: #fef2f2;
-              border-left: 6px solid #ef4444 !important;
-              animation: pulse-red 2s infinite;
-            "
-          >
-            <div class="d-flex align-items-center mb-2">
-              <i class="bi bi-shield-fill-x text-danger fs-4 me-2"></i>
-              <h6 class="fw-bold text-danger m-0 tracking-wide">
-                临床决策支持系统 (CDSS) 高危预警拦截
-              </h6>
-            </div>
-            <ul
-              class="mb-0 small text-danger fw-bold"
-              style="list-style-type: square"
-            >
-              {% for warn in record.get('CDSS预警') %}
-              <li class="mb-1">{{ warn }}</li>
-              {% endfor %}
+          <div class="alert shadow-sm border-0 m-0 rounded" style="background-color: #fef2f2; border-left: 6px solid #ef4444 !important; animation: pulse-red 2s infinite;">
+            <div class="d-flex align-items-center mb-2"><i class="bi bi-shield-fill-x text-danger fs-4 me-2"></i><h6 class="fw-bold text-danger m-0 tracking-wide">临床决策支持系统 (CDSS) 高危预警拦截</h6></div>
+            <ul class="mb-0 small text-danger fw-bold" style="list-style-type: square">
+              {% for warn in record.get('CDSS预警') %}<li class="mb-1">{{ warn }}</li>{% endfor %}
             </ul>
           </div>
           {% endif %}
         </div>
 
         {% if record %}
-        <div
-          class="glass-card flex-grow-1 d-flex flex-column shadow-sm border rounded bg-white"
-        >
+        <div class="glass-card flex-grow-1 d-flex flex-column shadow-sm border rounded bg-white">
           <div class="p-3 pb-0 border-bottom bg-light bg-opacity-50">
             <ul class="nav nav-tabs border-0" id="workstationTabs">
-              <li class="nav-item">
-                <button
-                  class="nav-link active fw-bold px-4"
-                  data-bs-toggle="tab"
-                  data-bs-target="#tab-vision"
-                >
-                  <i class="bi bi-view-stacked text-primary"></i> 溯源视图
-                </button>
-              </li>
-              <li class="nav-item">
-                <button
-                  class="nav-link fw-bold px-4"
-                  data-bs-toggle="tab"
-                  data-bs-target="#tab-emr"
-                >
-                  <i class="bi bi-file-earmark-medical text-success"></i>
-                  结构化复核
-                </button>
-              </li>
-              <li class="nav-item">
-                <button
-                  class="nav-link fw-bold px-4"
-                  data-bs-toggle="tab"
-                  data-bs-target="#tab-diagnosis"
-                >
-                  <i class="bi bi-clipboard2-pulse text-danger"></i> 逻辑入库
-                </button>
-              </li>
+              <li class="nav-item"><button class="nav-link active fw-bold px-4" data-bs-toggle="tab" data-bs-target="#tab-vision"><i class="bi bi-view-stacked text-primary"></i> 溯源视图</button></li>
+              <li class="nav-item"><button class="nav-link fw-bold px-4" data-bs-toggle="tab" data-bs-target="#tab-emr"><i class="bi bi-file-earmark-medical text-success"></i> 结构化复核</button></li>
+              <li class="nav-item"><button class="nav-link fw-bold px-4" data-bs-toggle="tab" data-bs-target="#tab-diagnosis"><i class="bi bi-clipboard2-pulse text-danger"></i> 逻辑入库</button></li>
             </ul>
           </div>
 
           <div class="tab-content p-4 flex-grow-1" style="min-height: 65vh">
+            
             <div class="tab-pane fade show active" id="tab-vision">
               <div class="row g-4 align-items-start">
-                <div
-                  class="col-lg-5 position-sticky"
-                  style="top: 1.5rem; z-index: 10"
-                >
-                  <div
-                    class="bg-light p-2 rounded text-center border shadow-sm"
-                  >
+                {% if image_filename or history_img_url %}
+                <div class="col-lg-5 position-sticky" style="top: 1.5rem; z-index: 10">
+                  <div class="bg-light p-2 rounded text-center border shadow-sm">
                     {% if image_filename %}
-                    <img
-                      src="/uploads_temp/{{ image_filename }}"
-                      class="img-fluid rounded"
-                      style="max-height: 70vh; width: 100%; object-fit: contain"
-                    />
+                        <img src="/uploads_temp/{{ image_filename }}" class="img-fluid rounded" style="max-height: 70vh; width: 100%; object-fit: contain" />
                     {% elif history_img_url %}
-                    <img
-                      src="{{ history_img_url }}"
-                      class="img-fluid rounded"
-                      style="max-height: 70vh; width: 100%; object-fit: contain"
-                    />
-                    {% else %}
-                    <div class="text-muted p-5 my-5">
-                      <i class="bi bi-image" style="font-size: 3rem"></i
-                      ><br /><span class="small mt-2 d-block"
-                        >未发现本地关联影像存档</span
-                      >
-                    </div>
+                        <img src="{{ history_img_url }}" class="img-fluid rounded" style="max-height: 70vh; width: 100%; object-fit: contain" />
                     {% endif %}
                   </div>
                 </div>
                 <div class="col-lg-7">
-                  <div
-                    class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2"
-                  >
-                    <h6 class="text-muted fw-bold mb-0 small tracking-wide">
-                      语义识别投影
-                      <span class="badge bg-secondary ms-2 fw-normal shadow-sm"
-                        >划词菜单 / 点击干预 / 增删重载</span
-                      >
-                    </h6>
+                {% else %}
+                <div class="col-lg-12">
+                  <div class="alert alert-success bg-opacity-10 text-success border-success border-opacity-25 shadow-sm py-2 mb-3 d-flex align-items-center">
+                    <i class="bi bi-lightning-charge-fill fs-5 me-2"></i>
+                    <span><strong>文本/文档直通模式激活</strong>：已跳过耗时图像感知层，为您全屏映射结构化语义张量。</span>
                   </div>
-                  <div
-                    id="highlight-render-target"
-                    class="text-panel p-4 border rounded bg-white shadow-sm"
-                    style="user-select: text"
-                  ></div>
+                {% endif %}
+
+                  <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                    <h6 class="text-muted fw-bold mb-0 small tracking-wide">语义识别投影 <span class="badge bg-secondary ms-2 fw-normal shadow-sm">划词菜单 / 点击干预 / 增删重载</span></h6>
+                  </div>
+                  <div id="highlight-render-target" class="text-panel p-4 border rounded bg-white shadow-sm" style="user-select: text; line-height: 2;"></div>
                 </div>
               </div>
             </div>
 
             <div class="tab-pane fade" id="tab-emr">
               <div class="d-flex align-items-center mb-4">
-                <div
-                  class="bg-primary bg-opacity-10 p-2 rounded text-primary me-3"
-                >
-                  <i class="bi bi-ui-checks fs-4"></i>
-                </div>
+                <div class="bg-primary bg-opacity-10 p-2 rounded text-primary me-3"><i class="bi bi-ui-checks fs-4"></i></div>
                 <div>
                   <h6 class="fw-bold m-0 text-dark">标准电子病历复核</h6>
-                  <span class="text-muted small"
-                    >请先点击左侧的文本框获取焦点，再点击右侧弹药库的实体进行一键录入。带
-                    <span class="text-danger fw-bold">*</span> 为必填项。</span
-                  >
+                  <span class="text-muted small">请先点击左侧的文本框获取焦点，再点击右侧弹药库的实体进行一键录入。带 <span class="text-danger fw-bold">*</span> 为必填项。</span>
                 </div>
               </div>
               <div class="row g-4 align-items-start">
                 <div class="col-lg-8">
                   <form id="emr-form">
-                    {% set standard_fields = emr_config.standard_fields %} {%
-                    set req_fields = emr_config.required_fields %} {% set
-                    existing_keys = record.get('结构化病历', {}).keys() | list
-                    %} {% set extra_fields = [] %} {% for k in existing_keys %}
-                    {% if k not in standard_fields %}{% set _ =
-                    extra_fields.append(k) %}{% endif %} {% endfor %}
+                    {% set standard_fields = emr_config.standard_fields %} 
+                    {% set req_fields = emr_config.required_fields %} 
+                    {% set existing_keys = record.get('结构化病历', {}).keys() | list %} 
+                    {% set extra_fields = [] %} 
+                    {% for k in existing_keys %} 
+                        {% if k not in standard_fields %}{% set _ = extra_fields.append(k) %}{% endif %} 
+                    {% endfor %}
 
-                    <h6
-                      class="fw-bold text-muted small border-bottom pb-2 mb-3"
-                    >
-                      通用标准结构
-                    </h6>
+                    <h6 class="fw-bold text-muted small border-bottom pb-2 mb-3">通用标准结构</h6>
                     <div class="row g-3 mb-4">
                       {% for field in standard_fields %}
-                      <div
-                        class="{% if field in ['姓名', '性别', '年龄'] %}col-md-4{% else %}col-md-12{% endif %}"
-                      >
+                      <div class="{% if field in ['姓名', '性别', '年龄'] %}col-md-4{% else %}col-md-12{% endif %}">
                         <label class="form-label fw-bold text-dark small mb-1">
-                          {{ field }} {% if field in req_fields %}<span
-                            class="text-danger ms-1"
-                            title="质控必填项"
-                            >*</span
-                          >{% endif %}
+                          {{ field }} {% if field in req_fields %}<span class="text-danger ms-1" title="质控必填项">*</span>{% endif %}
                         </label>
-                        <textarea
-                          class="form-control bg-light border-0 shadow-sm emr-input-target"
-                          name="{{ field }}"
-                          {%
-                          if
-                          field
-                          in
-                          req_fields
-                          %}data-required="true"
-                          {%
-                          endif
-                          %}
-                          rows="{% if field in ['现病史', '既往史', '处理'] %}3{% else %}1{% endif %}"
-                          style="transition: all 0.3s"
-                        >
-{{ record.get('结构化病历', {}).get(field, '') }}</textarea
-                        >
+                        <textarea class="form-control bg-light border-0 shadow-sm emr-input-target" name="{{ field }}" {% if field in req_fields %}data-required="true"{% endif %} rows="{% if field in ['现病史', '既往史', '处理', '综合病历文本'] %}3{% else %}1{% endif %}" style="transition: all 0.3s">{{ record.get('结构化病历', {}).get(field, '') }}</textarea>
                       </div>
                       {% endfor %}
                     </div>
 
                     {% if extra_fields|length > 0 %}
-                    <h6
-                      class="fw-bold text-muted small border-bottom pb-2 mb-3 mt-4"
-                    >
-                      附加识别内容与过往病史补充
-                    </h6>
+                    <h6 class="fw-bold text-muted small border-bottom pb-2 mb-3 mt-4">附加识别内容与过往病史补充</h6>
                     <div class="row g-3">
                       {% for field in extra_fields %}
                       <div class="col-md-12">
-                        <label class="form-label fw-bold text-dark small mb-1"
-                          >{{ field }}</label
-                        >
-                        <textarea
-                          class="form-control bg-light border-0 shadow-sm emr-input-target"
-                          name="{{ field }}"
-                          rows="2"
-                          style="transition: all 0.3s"
-                        >
-{{ record.get('结构化病历', {}).get(field, '') }}</textarea
-                        >
+                        <label class="form-label fw-bold text-dark small mb-1">{{ field }}</label>
+                        <textarea class="form-control bg-light border-0 shadow-sm emr-input-target" name="{{ field }}" rows="3" style="transition: all 0.3s">{{ record.get('结构化病历', {}).get(field, '') }}</textarea>
                       </div>
                       {% endfor %}
                     </div>
@@ -609,34 +266,13 @@
                   </form>
                 </div>
 
-                <div
-                  class="col-lg-4 position-sticky"
-                  style="top: 1.5rem; z-index: 10"
-                >
-                  <div
-                    class="bg-light p-3 border rounded-3 shadow-sm h-100 d-flex flex-column"
-                    style="max-height: 65vh"
-                  >
-                    <div
-                      class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3"
-                    >
-                      <h6 class="fw-bold text-dark m-0">
-                        <i class="bi bi-tags-fill text-primary"></i>
-                        全局实体提取库
-                      </h6>
+                <div class="col-lg-4 position-sticky" style="top: 1.5rem; z-index: 10">
+                  <div class="bg-light p-3 border rounded-3 shadow-sm h-100 d-flex flex-column" style="max-height: 65vh">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                      <h6 class="fw-bold text-dark m-0"><i class="bi bi-tags-fill text-primary"></i> 全局实体提取库</h6>
                     </div>
-                    <div
-                      class="alert alert-info py-2 px-3 small border-0 shadow-sm"
-                      style="background-color: #e0f2fe; color: #0369a1"
-                    >
-                      <i class="bi bi-cursor-fill"></i>
-                      点击下方实体自动填入选中框。
-                    </div>
-                    <div
-                      id="global-chip-pool"
-                      class="flex-grow-1 hide-scrollbar"
-                      style="overflow-y: auto"
-                    ></div>
+                    <div class="alert alert-info py-2 px-3 small border-0 shadow-sm" style="background-color: #e0f2fe; color: #0369a1"><i class="bi bi-cursor-fill"></i> 点击下方实体自动填入选中框。</div>
+                    <div id="global-chip-pool" class="flex-grow-1 hide-scrollbar" style="overflow-y: auto"></div>
                   </div>
                 </div>
               </div>
@@ -644,358 +280,100 @@
 
             <div class="tab-pane fade" id="tab-diagnosis">
               <div class="d-flex align-items-center mb-4">
-                <div
-                  class="bg-success bg-opacity-10 p-2 rounded text-success me-3"
-                >
-                  <i class="bi bi-clipboard2-pulse fs-4"></i>
-                </div>
+                <div class="bg-success bg-opacity-10 p-2 rounded text-success me-3"><i class="bi bi-clipboard2-pulse fs-4"></i></div>
                 <div>
                   <h6 class="fw-bold m-0 text-dark">最终诊断与签名归档</h6>
-                  <span class="text-muted small"
-                    >系统已生成智能诊断辅诊参考，点击绿色胶囊即可一键采纳至诊断意见框。</span
-                  >
+                  <span class="text-muted small">系统已生成智能诊断辅诊参考，点击绿色胶囊即可一键采纳至诊断意见框。</span>
                 </div>
               </div>
 
               {% if record and record.get('智能诊断核心问题') %}
               <div class="mb-4 p-3 bg-light border rounded-3 shadow-sm">
-                <div class="text-muted small fw-bold mb-3">
-                  <i class="bi bi-robot text-success"></i> AI 智能辅诊摘要库：
-                </div>
+                <div class="text-muted small fw-bold mb-3"><i class="bi bi-robot text-success"></i> AI 智能辅诊摘要库：</div>
                 <div>
                   {% for issue in record.get('智能诊断核心问题') %}
-                  <span
-                    class="badge rounded-pill bg-white text-success border border-success me-2 mb-2 px-3 py-2 diagnosis-chip shadow-sm"
-                    onclick="insertDiagnosis('{{ issue }}')"
-                    ><i class="bi bi-plus-circle me-1"></i>{{ issue }}</span
-                  >
+                  <span class="badge rounded-pill bg-white text-success border border-success me-2 mb-2 px-3 py-2 diagnosis-chip shadow-sm" onclick="insertDiagnosis('{{ issue }}')"><i class="bi bi-plus-circle me-1"></i>{{ issue }}</span>
                   {% endfor %}
                 </div>
               </div>
               {% else %}
-              <div
-                class="alert bg-light border text-muted shadow-sm mb-4 text-center py-3"
-              >
-                <i class="bi bi-inboxes fs-5 d-block mb-1"></i
-                ><span class="small fw-bold"
-                  >引擎未能生成有效的诊断汇总信息，请人工核查。</span
-                >
+              <div class="alert bg-light border text-muted shadow-sm mb-4 text-center py-3">
+                <i class="bi bi-inboxes fs-5 d-block mb-1"></i><span class="small fw-bold">引擎未能生成有效的诊断汇总信息，请人工核查。</span>
               </div>
               {% endif %}
 
-              <div
-                class="mb-4 p-4 bg-white rounded-3 shadow-sm border"
-                style="border-color: #e5e5ea !important"
-              >
-                <label class="fw-bold text-dark mb-2"
-                  ><i class="bi bi-pen"></i> 医生最终诊断意见与结论
-                  <span class="text-danger">*</span></label
-                >
-                <textarea
-                  id="final-diagnosis-text"
-                  class="form-control bg-light border-0 shadow-inner"
-                  rows="6"
-                  style="
-                    font-size: 1.05rem;
-                    line-height: 1.8;
-                    transition: background-color 0.3s;
-                  "
-                  placeholder="请点击上方绿色胶囊填入草稿，或在此处手动输入诊断结论..."
-                ></textarea>
+              <div class="mb-4 p-4 bg-white rounded-3 shadow-sm border" style="border-color: #e5e5ea !important">
+                <label class="fw-bold text-dark mb-2"><i class="bi bi-pen"></i> 医生最终诊断意见与结论 <span class="text-danger">*</span></label>
+                <textarea id="final-diagnosis-text" class="form-control bg-light border-0 shadow-inner" rows="6" style="font-size: 1.05rem; line-height: 1.8; transition: background-color 0.3s" placeholder="请点击上方绿色胶囊填入草稿，或在此处手动输入诊断结论..."></textarea>
               </div>
 
-              <div
-                class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mt-4 shadow-sm"
-              >
+              <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded border mt-4 shadow-sm">
                 <div class="d-flex align-items-center">
-                  <div
-                    class="spinner-grow spinner-grow-sm text-secondary me-2"
-                    role="status"
-                    id="save-spinner"
-                    style="display: none"
-                  ></div>
-                  <span
-                    class="text-muted small fw-bold"
-                    id="save-status-indicator"
-                    >就绪状态：待审核归档</span
-                  >
+                  <div class="spinner-grow spinner-grow-sm text-secondary me-2" role="status" id="save-spinner" style="display: none"></div>
+                  <span class="text-muted small fw-bold" id="save-status-indicator">就绪状态：待审核归档</span>
                 </div>
-                <button
-                  type="button"
-                  class="btn btn-primary px-4 shadow-sm"
-                  onclick="executeArchiveProtocol()"
-                >
-                  <i class="bi bi-check2-circle me-1"></i> 确认终态并入库
-                </button>
+                <button type="button" class="btn btn-primary px-4 shadow-sm" onclick="executeArchiveProtocol()"><i class="bi bi-check2-circle me-1"></i> 确认终态并入库</button>
               </div>
             </div>
           </div>
         </div>
         {% else %}
-        <div
-          id="idle-state-view"
-          class="glass-card flex-grow-1 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-white"
-          style="transition: all 0.4s; min-height: 60vh"
-        >
-          <i
-            id="idle-icon"
-            class="bi bi-person-badge text-primary opacity-25"
-            style="font-size: 6rem; transition: all 0.4s"
-          ></i>
-          <h4 id="idle-title" class="fw-bold text-dark mb-2 mt-3">
-            等待指派患者
-          </h4>
-          <p id="idle-desc" class="text-muted mx-auto">
-            系统闲置中，请先在左侧建立患者身份网关连接，或在左侧边栏检索历史病例库。
-          </p>
+        <div id="idle-state-view" class="glass-card flex-grow-1 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-white" style="transition: all 0.4s; min-height: 60vh;">
+          <i id="idle-icon" class="bi bi-person-badge text-primary opacity-25" style="font-size: 6rem; transition: all 0.4s;"></i>
+          <h4 id="idle-title" class="fw-bold text-dark mb-2 mt-3">等待指派患者</h4>
+          <p id="idle-desc" class="text-muted mx-auto">系统闲置中，请先在左侧建立患者身份网关连接，或在左侧边栏检索历史病例库。</p>
         </div>
         {% endif %}
       </div>
     </div>
 
-    <div
-      id="selection-bubble"
-      class="shadow border glass-card bubble-enter"
-      style="
-        display: none;
-        position: absolute;
-        z-index: 1050;
-        padding: 6px;
-        gap: 8px;
-        border-radius: 8px;
-      "
-    >
-      <button
-        class="btn btn-sm btn-light text-success border-0 fw-bold"
-        onclick="triggerAddEntity()"
-      >
-        <i class="bi bi-plus-square-dotted"></i> 设为实体
-      </button>
-      <button
-        class="btn btn-sm btn-light text-primary border-0 fw-bold"
-        onclick="triggerOcrCorrection()"
-      >
-        <i class="bi bi-magic"></i> 字典纠错
-      </button>
+    <div id="selection-bubble" class="shadow border glass-card bubble-enter" style="display: none; position: absolute; z-index: 1050; padding: 6px; gap: 8px; border-radius: 8px">
+      <button class="btn btn-sm btn-light text-success border-0 fw-bold" onclick="triggerAddEntity()"><i class="bi bi-plus-square-dotted"></i> 设为实体</button>
+      <button class="btn btn-sm btn-light text-primary border-0 fw-bold" onclick="triggerOcrCorrection()"><i class="bi bi-magic"></i> 字典纠错</button>
     </div>
 
-    <div class="modal fade" id="editOcrTextModal">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content glass-card">
-          <div class="modal-body">
-            <input type="hidden" id="edit-ocr-section" /><textarea
-              class="form-control bg-light"
-              id="edit-ocr-content"
-              rows="6"
-            ></textarea>
-            <div class="d-flex gap-2 mt-4">
-              <button
-                class="btn btn-outline-secondary w-50"
-                onclick="saveOcrText(false)"
-              >
-                仅保存文本</button
-              ><button class="btn btn-primary w-50" onclick="saveOcrText(true)">
-                向下传导 (重载NER)
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal fade" id="ocrCorrectionModal">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-body">
-            <input
-              type="text"
-              id="ocr-wrong-word"
-              class="form-control mb-2"
-              readonly
-            /><input
-              type="text"
-              id="ocr-right-word"
-              class="form-control mb-3"
-            /><button
-              class="btn btn-primary w-100"
-              onclick="submitOcrCorrection(event)"
-            >
-              反哺
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal fade" id="addEntityModal">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-body">
-            <input
-              type="text"
-              id="add-ent-text"
-              class="form-control mb-2"
-              readonly
-            /><select id="add-ent-section" class="form-select mb-2"></select
-            ><select id="add-ent-type" class="form-select mb-2">
-              <option>疾病</option>
-              <option>症状</option>
-              <option>药物</option>
-              <option>身体部位</option>
-              <option>手术/检查</option></select
-            ><select id="add-ent-polarity" class="form-select mb-3">
-              <option>阳性</option>
-              <option>阴性</option></select
-            ><button
-              class="btn btn-success w-100 fw-bold"
-              onclick="saveNewEntity()"
-            >
-              确认注入
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal fade" id="editEntityModal">
-      <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-          <div class="modal-body">
-            <input type="hidden" id="edit-ent-text" /><input
-              type="hidden"
-              id="edit-ent-start"
-            /><input type="hidden" id="edit-ent-section" /><span
-              id="edit-display-text"
-              class="d-block text-center fw-bold mb-3 fs-5"
-            ></span
-            ><select id="edit-ent-type" class="form-select mb-2">
-              <option>疾病</option>
-              <option>症状</option>
-              <option>药物</option>
-              <option>身体部位</option>
-              <option>手术/检查</option></select
-            ><select id="edit-ent-polarity" class="form-select mb-3">
-              <option>阳性</option>
-              <option>阴性</option>
-            </select>
-            <div class="d-flex gap-2">
-              <button
-                class="btn btn-danger w-50 fw-bold"
-                onclick="deleteEntity()"
-              >
-                剔除</button
-              ><button
-                class="btn btn-primary w-50 fw-bold"
-                onclick="updateEntity()"
-              >
-                更新属性
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="modal fade" id="editOcrTextModal"><div class="modal-dialog modal-lg"><div class="modal-content glass-card"><div class="modal-body"><input type="hidden" id="edit-ocr-section" /><textarea class="form-control bg-light" id="edit-ocr-content" rows="6"></textarea><div class="d-flex gap-2 mt-4"><button class="btn btn-outline-secondary w-50" onclick="saveOcrText(false)">仅保存文本</button><button class="btn btn-primary w-50" onclick="saveOcrText(true)">向下传导 (重载NER)</button></div></div></div></div></div>
+    <div class="modal fade" id="ocrCorrectionModal"><div class="modal-dialog"><div class="modal-content"><div class="modal-body"><input type="text" id="ocr-wrong-word" class="form-control mb-2" readonly /><input type="text" id="ocr-right-word" class="form-control mb-3" /><button class="btn btn-primary w-100" onclick="submitOcrCorrection(event)">反哺</button></div></div></div></div>
+    <div class="modal fade" id="addEntityModal"><div class="modal-dialog"><div class="modal-content"><div class="modal-body"><input type="text" id="add-ent-text" class="form-control mb-2" readonly /><select id="add-ent-section" class="form-select mb-2"></select><select id="add-ent-type" class="form-select mb-2"><option>疾病</option><option>症状</option><option>药物</option><option>身体部位</option><option>手术/检查</option></select><select id="add-ent-polarity" class="form-select mb-3"><option>阳性</option><option>阴性</option></select><button class="btn btn-success w-100 fw-bold" onclick="saveNewEntity()">确认注入</button></div></div></div></div>
+    <div class="modal fade" id="editEntityModal"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-body"><input type="hidden" id="edit-ent-text" /><input type="hidden" id="edit-ent-start" /><input type="hidden" id="edit-ent-section" /><span id="edit-display-text" class="d-block text-center fw-bold mb-3 fs-5"></span><select id="edit-ent-type" class="form-select mb-2"><option>疾病</option><option>症状</option><option>药物</option><option>身体部位</option><option>手术/检查</option></select><select id="edit-ent-polarity" class="form-select mb-3"><option>阳性</option><option>阴性</option></select><div class="d-flex gap-2"><button class="btn btn-danger w-50 fw-bold" onclick="deleteEntity()">剔除</button><button class="btn btn-primary w-50 fw-bold" onclick="updateEntity()">更新属性</button></div></div></div></div></div>
 
     <div class="modal fade" id="empiModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content glass-card border-0 shadow-lg">
           <div class="modal-header border-bottom-0 pb-0">
-            <h5 class="modal-title fw-bold text-dark">
-              <i class="bi bi-person-badge text-primary"></i> 患者主索引网关
-              (EMPI)
-            </h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
+            <h5 class="modal-title fw-bold text-dark"><i class="bi bi-person-badge text-primary"></i> 患者主索引网关 (EMPI)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body pt-3 pb-4">
-            <p class="text-muted small mb-4">
-              请确立当前就诊的患者身份。系统将自动为其关联并继承历史健康档案以进行处方预警校验。
-            </p>
+            <p class="text-muted small mb-4">请确立当前就诊的患者身份。系统将自动为其关联并继承历史健康档案以进行处方预警校验。</p>
             <ul class="nav nav-pills nav-fill mb-3" role="tablist">
-              <li class="nav-item" role="presentation">
-                <button
-                  class="nav-link active fw-bold border"
-                  data-bs-toggle="tab"
-                  data-bs-target="#empi-old"
-                  type="button"
-                >
-                  提取历史档案
-                </button>
-              </li>
-              <li class="nav-item ms-2" role="presentation">
-                <button
-                  class="nav-link fw-bold border text-success"
-                  data-bs-toggle="tab"
-                  data-bs-target="#empi-new"
-                  type="button"
-                >
-                  建档新患者
-                </button>
-              </li>
+              <li class="nav-item" role="presentation"><button class="nav-link active fw-bold border" data-bs-toggle="tab" data-bs-target="#empi-old" type="button">提取历史档案</button></li>
+              <li class="nav-item ms-2" role="presentation"><button class="nav-link fw-bold border text-success" data-bs-toggle="tab" data-bs-target="#empi-new" type="button">建档新患者</button></li>
             </ul>
             <div class="tab-content">
               <div class="tab-pane fade show active" id="empi-old">
                 <div class="mb-3">
-                  <label class="form-label small fw-bold text-muted"
-                    >选择现有患者标识符</label
-                  >
-                  <select
-                    class="form-select bg-light border-0 shadow-sm"
-                    id="empi-patient-select"
-                  ></select>
+                  <label class="form-label small fw-bold text-muted">选择现有患者标识符</label>
+                  <select class="form-select bg-light border-0 shadow-sm" id="empi-patient-select"></select>
                 </div>
-                <button
-                  class="btn btn-primary w-100 fw-bold"
-                  onclick="selectPatient()"
-                >
-                  <i class="bi bi-check2-circle"></i> 确立身份并解锁工作站
-                </button>
+                <button class="btn btn-primary w-100 fw-bold" onclick="selectPatient()"><i class="bi bi-check2-circle"></i> 确立身份并解锁工作站</button>
               </div>
               <div class="tab-pane fade" id="empi-new">
                 <div class="mb-3">
-                  <label class="form-label small fw-bold text-muted"
-                    >患者姓名 (选填)</label
-                  >
-                  <input
-                    type="text"
-                    class="form-control form-control-sm"
-                    id="empi-new-name"
-                    placeholder="留空则由 AI 自动提取"
-                  />
+                  <label class="form-label small fw-bold text-muted">患者姓名 (选填)</label>
+                  <input type="text" class="form-control form-control-sm" id="empi-new-name" placeholder="留空则由 AI 自动提取" />
                 </div>
                 <div class="row mb-4">
                   <div class="col-6">
-                    <label class="form-label small fw-bold text-muted"
-                      >性别</label
-                    >
-                    <select
-                      class="form-select form-select-sm"
-                      id="empi-new-gender"
-                    >
-                      <option value="">(自动提取)</option>
-                      <option value="男">男</option>
-                      <option value="女">女</option>
-                    </select>
+                    <label class="form-label small fw-bold text-muted">性别</label>
+                    <select class="form-select form-select-sm" id="empi-new-gender"><option value="">(自动提取)</option><option value="男">男</option><option value="女">女</option></select>
                   </div>
                   <div class="col-6">
-                    <label class="form-label small fw-bold text-muted"
-                      >年龄 (选填)</label
-                    >
-                    <input
-                      type="text"
-                      class="form-control form-control-sm"
-                      id="empi-new-age"
-                      placeholder="如: 45岁"
-                    />
+                    <label class="form-label small fw-bold text-muted">年龄 (选填)</label>
+                    <input type="text" class="form-control form-control-sm" id="empi-new-age" placeholder="如: 45岁" />
                   </div>
                 </div>
-                <button
-                  class="btn btn-success w-100 fw-bold"
-                  onclick="createNewPatient()"
-                >
-                  <i class="bi bi-person-plus-fill"></i> 建立新档案并解锁
-                </button>
+                <button class="btn btn-success w-100 fw-bold" onclick="createNewPatient()"><i class="bi bi-person-plus-fill"></i> 建立新档案并解锁</button>
               </div>
             </div>
           </div>
@@ -1005,189 +383,40 @@
 
     <div class="modal fade" id="settingsConsoleModal" tabindex="-1">
       <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div
-          class="modal-content border-0 shadow-lg"
-          style="
-            background-color: #f4f4f5;
-            border-radius: 12px;
-            overflow: hidden;
-            height: 85vh;
-          "
-        >
+        <div class="modal-content border-0 shadow-lg" style="background-color: #f4f4f5; border-radius: 12px; overflow: hidden; height: 85vh;">
           <div class="d-flex h-100">
-            <div
-              class="p-3 d-flex flex-column"
-              style="
-                width: 240px;
-                background-color: #eaeaec;
-                border-right: 1px solid #dcdcdc;
-                flex-shrink: 0;
-              "
-            >
-              <h5
-                class="fw-bold text-dark mb-4 px-2 mt-2"
-                style="letter-spacing: 1px"
-              >
-                <i class="bi bi-cpu-fill text-primary"></i> 引擎配置
-              </h5>
-              <ul
-                class="nav nav-pills flex-column gap-2"
-                id="settings-tabs"
-                role="tablist"
-              >
-                <li class="nav-item">
-                  <button
-                    class="nav-link active text-start fw-bold"
-                    data-bs-toggle="tab"
-                    data-bs-target="#set-general"
-                    type="button"
-                    style="border-radius: 8px"
-                  >
-                    <i class="bi bi-sliders me-2"></i> 基础截断与调度
-                  </button>
-                </li>
-                <li class="nav-item">
-                  <button
-                    class="nav-link text-start fw-bold"
-                    data-bs-toggle="tab"
-                    data-bs-target="#set-emr-rules"
-                    type="button"
-                    style="border-radius: 8px"
-                  >
-                    <i class="bi bi-ui-checks me-2"></i> 表单与质控规则
-                  </button>
-                </li>
-                <li class="nav-item">
-                  <button
-                    class="nav-link text-start fw-bold"
-                    data-bs-toggle="tab"
-                    data-bs-target="#set-ocr"
-                    type="button"
-                    style="border-radius: 8px"
-                  >
-                    <i class="bi bi-spellcheck me-2"></i> OCR 纠错词典
-                  </button>
-                </li>
-                <li class="nav-item">
-                  <button
-                    class="nav-link text-start fw-bold"
-                    data-bs-toggle="tab"
-                    data-bs-target="#set-cdss"
-                    type="button"
-                    style="border-radius: 8px"
-                  >
-                    <i class="bi bi-shield-plus me-2"></i> CDSS 拦截网关
-                  </button>
-                </li>
-                <li class="nav-item mt-auto">
-                  <hr class="my-2 border-secondary opacity-25" />
-                  <button
-                    class="nav-link text-start fw-bold text-danger"
-                    data-bs-toggle="tab"
-                    data-bs-target="#set-dev"
-                    type="button"
-                    style="border-radius: 8px"
-                  >
-                    <i class="bi bi-code-square me-2"></i> 纯文本底层 (JSON)
-                  </button>
-                </li>
+            <div class="p-3 d-flex flex-column" style="width: 240px; background-color: #eaeaec; border-right: 1px solid #dcdcdc; flex-shrink: 0;">
+              <h5 class="fw-bold text-dark mb-4 px-2 mt-2" style="letter-spacing: 1px;"><i class="bi bi-cpu-fill text-primary"></i> 引擎配置</h5>
+              <ul class="nav nav-pills flex-column gap-2" id="settings-tabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active text-start fw-bold" data-bs-toggle="tab" data-bs-target="#set-general" type="button" style="border-radius: 8px;"><i class="bi bi-sliders me-2"></i> 基础截断与调度</button></li>
+                <li class="nav-item"><button class="nav-link text-start fw-bold" data-bs-toggle="tab" data-bs-target="#set-emr-rules" type="button" style="border-radius: 8px;"><i class="bi bi-ui-checks me-2"></i> 表单与质控规则</button></li>
+                <li class="nav-item"><button class="nav-link text-start fw-bold" data-bs-toggle="tab" data-bs-target="#set-ocr" type="button" style="border-radius: 8px;"><i class="bi bi-spellcheck me-2"></i> OCR 纠错词典</button></li>
+                <li class="nav-item"><button class="nav-link text-start fw-bold" data-bs-toggle="tab" data-bs-target="#set-cdss" type="button" style="border-radius: 8px;"><i class="bi bi-shield-plus me-2"></i> CDSS 拦截网关</button></li>
+                <li class="nav-item mt-auto"><hr class="my-2 border-secondary opacity-25" /><button class="nav-link text-start fw-bold text-danger" data-bs-toggle="tab" data-bs-target="#set-dev" type="button" style="border-radius: 8px;"><i class="bi bi-code-square me-2"></i> 纯文本底层 (JSON)</button></li>
               </ul>
             </div>
-            <div
-              class="d-flex flex-column flex-grow-1 bg-white"
-              style="width: 0"
-            >
-              <div
-                class="px-4 pt-4 pb-3 border-bottom d-flex justify-content-between align-items-center z-1 bg-white"
-              >
+            <div class="d-flex flex-column flex-grow-1 bg-white" style="width: 0">
+              <div class="px-4 pt-4 pb-3 border-bottom d-flex justify-content-between align-items-center z-1 bg-white">
                 <h4 class="fw-bold m-0" id="settings-title">基础截断与调度</h4>
-                <button
-                  type="button"
-                  class="btn-close"
-                  data-bs-dismiss="modal"
-                ></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
-              <div
-                class="flex-grow-1 p-4 hide-scrollbar"
-                style="overflow-y: auto; background-color: #fbfbfd"
-              >
+              <div class="flex-grow-1 p-4 hide-scrollbar" style="overflow-y: auto; background-color: #fbfbfd">
                 <div class="tab-content h-100">
                   <div class="tab-pane fade show active" id="set-general">
                     <div class="row g-4">
                       <div class="col-md-6">
-                        <div
-                          class="bg-white p-4 rounded-3 border shadow-sm h-100"
-                        >
-                          <h6 class="fw-bold mb-3 text-dark">
-                            <i class="bi bi-cpu"></i> 算力与推理配置
-                          </h6>
-                          <div class="mb-3">
-                            <label class="form-label small text-muted"
-                              >张量运算设备</label
-                            ><select
-                              class="form-select form-select-sm"
-                              id="gui-device"
-                            >
-                              <option value="cuda">CUDA (优先 GPU)</option>
-                              <option value="cpu">仅 CPU</option>
-                            </select>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label small text-muted"
-                              >NER 置信度阈值</label
-                            ><input
-                              type="number"
-                              class="form-control form-control-sm"
-                              id="gui-threshold"
-                              step="0.1"
-                              min="0"
-                              max="1"
-                            />
-                          </div>
-                          <div
-                            class="d-flex justify-content-between align-items-center"
-                          >
-                            <span class="small text-muted fw-bold"
-                              >自动纠错前置过滤</span
-                            >
-                            <div class="form-check form-switch m-0">
-                              <input
-                                class="form-check-input"
-                                type="checkbox"
-                                id="gui-enable-correction"
-                              />
-                            </div>
-                          </div>
+                        <div class="bg-white p-4 rounded-3 border shadow-sm h-100">
+                          <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-cpu"></i> 算力与推理配置</h6>
+                          <div class="mb-3"><label class="form-label small text-muted">张量运算设备</label><select class="form-select form-select-sm" id="gui-device"><option value="cuda">CUDA (优先 GPU)</option><option value="cpu">仅 CPU</option></select></div>
+                          <div class="mb-3"><label class="form-label small text-muted">NER 置信度阈值</label><input type="number" class="form-control form-control-sm" id="gui-threshold" step="0.1" min="0" max="1" /></div>
+                          <div class="d-flex justify-content-between align-items-center"><span class="small text-muted fw-bold">自动纠错前置过滤</span><div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="gui-enable-correction" /></div></div>
                         </div>
                       </div>
                       <div class="col-md-6">
-                        <div
-                          class="bg-white p-4 rounded-3 border shadow-sm h-100"
-                        >
-                          <h6 class="fw-bold mb-3 text-dark">
-                            <i class="bi bi-symmetry-horizontal"></i>
-                            结构与极性规则
-                          </h6>
-                          <div class="mb-3">
-                            <label class="form-label small text-muted"
-                              >极性传导与否定词</label
-                            ><input
-                              type="text"
-                              class="form-control form-control-sm"
-                              id="gui-negation"
-                              placeholder="无, 否, 未见"
-                            />
-                          </div>
-                          <div class="mb-0">
-                            <label class="form-label small text-muted"
-                              >病历段落截断锚点</label
-                            ><textarea
-                              class="form-control form-control-sm"
-                              id="gui-sections"
-                              rows="4"
-                              placeholder="主诉, 现病史, 既往史..."
-                            ></textarea>
-                          </div>
+                        <div class="bg-white p-4 rounded-3 border shadow-sm h-100">
+                          <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-symmetry-horizontal"></i> 结构与极性规则</h6>
+                          <div class="mb-3"><label class="form-label small text-muted">极性传导与否定词</label><input type="text" class="form-control form-control-sm" id="gui-negation" placeholder="无, 否, 未见" /></div>
+                          <div class="mb-0"><label class="form-label small text-muted">病历段落截断锚点</label><textarea class="form-control form-control-sm" id="gui-sections" rows="4" placeholder="主诉, 现病史, 既往史..."></textarea></div>
                         </div>
                       </div>
                     </div>
@@ -1195,134 +424,38 @@
 
                   <div class="tab-pane fade" id="set-emr-rules">
                     <div class="bg-white p-4 rounded-3 border shadow-sm">
-                      <h6 class="fw-bold mb-3 text-dark">
-                        <i class="bi bi-file-earmark-medical"></i>
-                        动态表单与质控参数
-                      </h6>
-                      <div class="alert alert-primary py-2 small border-0">
-                        <i class="bi bi-info-circle-fill me-2"></i
-                        ><strong>填写说明：</strong>
-                        此处配置决定了医生工作站【结构化复核】界面中的表单构成。请用<strong>英文逗号</strong>分隔。
-                      </div>
-                      <div class="mb-4">
-                        <label class="form-label small text-muted fw-bold"
-                          >标准表单字段 (工作站左侧将显示的固定文本框)</label
-                        ><textarea
-                          class="form-control"
-                          id="gui-emr-standard"
-                          rows="3"
-                          placeholder="姓名, 性别, 年龄, 主诉, 现病史..."
-                        ></textarea>
-                      </div>
-                      <div class="mb-0">
-                        <label class="form-label small text-danger fw-bold"
-                          >质控强约束必填项
-                          (归档时若为空将被红框强制拦截)</label
-                        ><textarea
-                          class="form-control border-danger"
-                          id="gui-emr-required"
-                          rows="2"
-                          placeholder="主诉, 过敏史..."
-                        ></textarea>
-                      </div>
+                      <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-file-earmark-medical"></i> 动态表单与质控参数</h6>
+                      <div class="alert alert-primary py-2 small border-0"><i class="bi bi-info-circle-fill me-2"></i><strong>填写说明：</strong> 此处配置决定了医生工作站【结构化复核】界面中的表单构成。请用<strong>英文逗号</strong>分隔。</div>
+                      <div class="mb-4"><label class="form-label small text-muted fw-bold">标准表单字段 (工作站左侧将显示的固定文本框)</label><textarea class="form-control" id="gui-emr-standard" rows="3" placeholder="姓名, 性别, 年龄, 主诉, 现病史..."></textarea></div>
+                      <div class="mb-0"><label class="form-label small text-danger fw-bold">质控强约束必填项 (归档时若为空将被红框强制拦截)</label><textarea class="form-control border-danger" id="gui-emr-required" rows="2" placeholder="主诉, 过敏史..."></textarea></div>
                     </div>
                   </div>
 
                   <div class="tab-pane fade" id="set-ocr">
-                    <div
-                      class="d-flex justify-content-between align-items-center mb-3"
-                    >
-                      <span class="text-muted small"
-                        >底层清洗策略，识别到左侧错词将强制替换为右侧正词。</span
-                      ><button
-                        class="btn btn-sm btn-outline-primary fw-bold"
-                        onclick="addOcrGuiRow()"
-                      >
-                        <i class="bi bi-plus-lg"></i> 新增词对
-                      </button>
-                    </div>
-                    <div class="row fw-bold text-muted small mb-2 px-2">
-                      <div class="col-5">OCR 识别错词</div>
-                      <div class="col-5">期望正确名词</div>
-                      <div class="col-2 text-center">操作</div>
-                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3"><span class="text-muted small">底层清洗策略，识别到左侧错词将强制替换为右侧正词。</span><button class="btn btn-sm btn-outline-primary fw-bold" onclick="addOcrGuiRow()"><i class="bi bi-plus-lg"></i> 新增词对</button></div>
+                    <div class="row fw-bold text-muted small mb-2 px-2"><div class="col-5">OCR 识别错词</div><div class="col-5">期望正确名词</div><div class="col-2 text-center">操作</div></div>
                     <div id="ocr-gui-container"></div>
                   </div>
 
                   <div class="tab-pane fade" id="set-cdss">
-                    <div
-                      class="d-flex justify-content-between align-items-center mb-3"
-                    >
-                      <span class="text-muted small"
-                        >临床辅助决策安全拦截规则矩阵。</span
-                      ><button
-                        class="btn btn-sm btn-outline-success fw-bold"
-                        onclick="addCdssGuiCard()"
-                      >
-                        <i class="bi bi-plus-lg"></i> 新增拦截规则
-                      </button>
-                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3"><span class="text-muted small">临床辅助决策安全拦截规则矩阵。</span><button class="btn btn-sm btn-outline-success fw-bold" onclick="addCdssGuiCard()"><i class="bi bi-plus-lg"></i> 新增拦截规则</button></div>
                     <div id="cdss-gui-container"></div>
                   </div>
 
                   <div class="tab-pane fade h-100" id="set-dev">
                     <div class="d-flex flex-column h-100">
-                      <div
-                        class="alert alert-warning py-2 small border-0 d-flex align-items-center mb-2"
-                      >
-                        <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i
-                        ><span
-                          ><strong>全局数据映射：</strong>
-                          此处实时同步了所有的配置结构。保存时将以此处文本框内容为准。</span
-                        >
-                      </div>
-                      <textarea
-                        class="form-control bg-dark text-success flex-grow-1 border-0"
-                        id="editor-raw-json"
-                        style="
-                          font-family: &quot;Consolas&quot;, monospace;
-                          font-size: 0.85rem;
-                          resize: none;
-                          min-height: 400px;
-                        "
-                      ></textarea>
+                      <div class="alert alert-warning py-2 small border-0 d-flex align-items-center mb-2"><i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i><span><strong>全局数据映射：</strong> 此处实时同步了所有的配置结构。保存时将以此处文本框内容为准。</span></div>
+                      <textarea class="form-control bg-dark text-success flex-grow-1 border-0" id="editor-raw-json" style="font-family: &quot;Consolas&quot;, monospace; font-size: 0.85rem; resize: none; min-height: 400px;"></textarea>
                     </div>
                   </div>
                 </div>
               </div>
-              <div
-                class="px-4 py-3 border-top bg-white d-flex justify-content-between align-items-center z-1"
-              >
-                <div>
-                  <button
-                    type="button"
-                    class="btn btn-outline-danger btn-sm px-3 fw-bold"
-                    onclick="restoreFactorySettings()"
-                  >
-                    <i class="bi bi-arrow-counterclockwise"></i> 恢复出厂设置
-                  </button>
-                </div>
+              <div class="px-4 py-3 border-top bg-white d-flex justify-content-between align-items-center z-1">
+                <div><button type="button" class="btn btn-outline-danger btn-sm px-3 fw-bold" onclick="restoreFactorySettings()"><i class="bi bi-arrow-counterclockwise"></i> 恢复出厂设置</button></div>
                 <div class="d-flex align-items-center gap-2">
-                  <span
-                    class="text-success small fw-bold me-2"
-                    id="settings-save-msg"
-                    style="display: none"
-                    ><i class="bi bi-check-circle-fill"></i> 热重载已生效</span
-                  >
-                  <button
-                    type="button"
-                    class="btn btn-light border px-4"
-                    data-bs-dismiss="modal"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-primary px-4 fw-bold shadow-sm"
-                    onclick="saveSettingsConsole(this)"
-                  >
-                    <i class="bi bi-save2"></i> 保存并热重载
-                  </button>
+                  <span class="text-success small fw-bold me-2" id="settings-save-msg" style="display: none"><i class="bi bi-check-circle-fill"></i> 热重载已生效</span>
+                  <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">取消</button>
+                  <button type="button" class="btn btn-primary px-4 fw-bold shadow-sm" onclick="saveSettingsConsole(this)"><i class="bi bi-save2"></i> 保存并热重载</button>
                 </div>
               </div>
             </div>
