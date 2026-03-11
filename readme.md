@@ -1,23 +1,35 @@
-> ### ⚠️ 重要声明 (Disclaimer)
+> ### 重要声明 (Disclaimer)
 >
-> **本项目仅作为毕业设计作品，旨在展示人工智能（NLP）算法落地逻辑、人机协同架构与医疗信息化工程，不具备任何实际医疗用途。**
+> **本项目仅作为学术研究与毕业设计作品，旨在展示人工智能（NLP）算法落地逻辑、人机协同架构与医疗信息化工程，不具备任何实际医疗用途。**
 >
 > - **非临床建议**：系统生成的推断结论（如用药目的、临床结论等）均基于预训练模型与专家规则，未经临床验证，**严禁**直接用于真实医疗诊断、用药指导或治疗建议。
 > - **学术研究性质**：本项目所有识别结果、推断逻辑仅供学术交流与技术探讨使用，使用者需承担因误用而产生的风险。
-> - **数据隐私**：请勿将含有真实敏感个人信息的病历上传至公共环境。
+> - **数据隐私**：请勿将含有真实敏感个人信息的病历上传至任何公共环境。
 >
 > **This project is for academic demonstration purposes ONLY and is NOT intended for actual clinical use or medical diagnosis.**
 
 ---
 
-# 🏥 基于 OCR 与大模型 NER 的医疗病历智能结构化与人机协同中枢 
+# 医疗病历智能感知与人机协同中枢
 **(Medical EMR Intelligence & Human-in-the-Loop System)**
 
-基于深度学习（MacBERT + GlobalPointer）与动态规则引擎的双驱架构，专为医疗场景设计的自动化信息抽取、逻辑推理与全链路快照归档系统。本项目探索了 AI 算法在垂直行业落地的工程化范式，实现了从静态模型到具备“持续演化”能力的 MLOps 架构跃迁。
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg?logo=pytorch)](https://pytorch.org/)
+[![Flask](https://img.shields.io/badge/Flask-2.3%2B-black.svg?logo=flask)](https://flask.palletsprojects.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+本项目是一个基于深度学习（**MacBERT + RoPE GlobalPointer**）与**动态规则引擎**双驱架构的现代化医疗 NLP 工作站。专为非结构化临床文本（手写/打印病历、PDF 报告、电子文档）设计，探索了 AI 算法在垂直行业落地的工程化范式。
+
+**核心亮点：**
+
+- **多模态全兼容**：支持图片 OCR 视觉感知与 PDF/Docx/TXT 纯文本极速直通。
+- **精准语义认知**：解决医疗长文本实体嵌套难题，内置极性逻辑推演（阴性/阳性体征判定）。
+- **工业级 MLOps**：包含动态配置热重载、EMPI 患者网关、CDSS 高危拦截与防篡改归档机制。
+- **沉浸式交互**：摒弃黑盒输出，打造类 IDE 的“划词干预-实时重载”人机协同（HITL）闭环。
 
 ---
 
-## 一、 🌟 项目目的与意义 (Project Purpose & Significance)
+## 一、 项目目的与意义 (Project Purpose & Significance)
 
 1. **规范化基层医疗数据资产**：针对非结构化的手写/打印病历，提供低门槛的数字化与结构化解决方案，解决纸质病历易丢失、难检索的痛点。
 2. **打通院际信息孤岛**：将杂乱的文本转化为标准结构化 JSON 数据，方便向更高级别医院转院时的病史精准查阅与系统级数据对接。
@@ -25,255 +37,387 @@
 
 ---
 
-## 二、 ✨ 核心技术突破与工程亮点 (Core Engineering Innovations)
+## 二、 核心工程架构与技术壁垒 (Core Engineering Innovations)
 
-本项目在算法表现层与业务逻辑层实现了多项工业级设计，全面突破了传统静态 NLP 模型的落地瓶颈：
+本项目摒弃了传统 AI 模型“只管识别、不管业务”的孤岛模式，将算法表现层与医疗业务逻辑深度融合，构筑了以下四大核心技术基柱：
 
-### 2.1 🧠 跨句极性辖域传导 (Polarity Propagation)
-- **痛点**：真实病历中常出现“否认心脏病、高血压、糖尿病”的长程连词句式，传统 NER 模型极易产生严重偏离临床事实的“假阳性”提取。
-- **创新**：独创“基于枚举正则的极性传染算法”。系统不仅能通过前置滑动窗口捕捉否定词（如“无”、“未见”），更能沿着语法树的枚举节点（如顿号、逗号），将【阴性/排除】状态精准传导至下游所有实体，并在前端 UI 中以**灰色删除线**直观呈现。
+### 2.1 双模态智能感知与深度语义网络 (Dual-Modal Perception & Deep Cognition)
+> **技术栈**: `RapidOCR` | `PyMuPDF` | `MacBERT + RoPE GlobalPointer` | `极性辖域传导`
+- **多模态全兼容与智能熔断**：系统原生集成图文双轨解析。支持 PDF/图片 的超采样栅格化 OCR，同时提供 Word/TXT 的“纯文本闪电直通车”——物理熔断庞大的视觉感知层，实现毫秒级直通 NER 认知计算。
+- **复杂语境精准解构**：底层采用注入了旋转位置编码（RoPE）的 GlobalPointer 网络，从数学维度彻底解决医疗长文本的“实体嵌套”难题；独创“基于枚举正则的极性传染算法”，沿着语法树精准传导“阴性/排除”状态，消灭传统模型在长连词句下的“假阳性”幻觉。
 
-### 2.2 🚨 动态微服务与 CDSS 实时预警 (Reactive Microservices & CDSS)
-- **痛点**：传统的“批处理”管线在修改单个错字时需要重跑整个流程，算力浪费且交互迟钝。
-- **创新**：重构底层引擎为**基于 DAG 的响应式微服务流**。
-  - **局部 NER 热重载**：医生在前端增删单段文本时，系统仅将该段落发送至底层大模型显存进行特征解码，实现毫秒级局部无感刷新。
-  - **实时临床决策支持 (CDSS)**：内置医药冲突知识图谱（如青霉素交叉过敏、NSAIDs 哮喘）。任何实体状态的改变（算法提取或人工干预）都将瞬间触发网关校验，秒级弹出致命用药冲突的血红色拦截警报。
+### 2.2 强约束质控与全栈 CDSS 拦截网关 (Clinical Quality Gate & CDSS)
+> **技术栈**: `EMPI 跨时空继承` | `双向状态机监听` | `JSON 规则树碰撞`
+- **无死角的高危预警防线**：前置 EMPI 网关自动寻址并**跨时空继承**老患者的历史过敏史。内嵌临床决策支持系统（CDSS），实时双向监听 AI 提取与人工手写的药物数据，一旦触发配伍禁忌，瞬间爆出血红色高压拦截警报。
+- **底线级物理质控归档**：基于 `rules.json` 动态下发表单与必填项约束。医生签署终态归档时，若系统扫描到“主诉”或“初步诊断”等核心节点为空，将实施物理拦截并强制转移焦点，逼迫人工介入补充，确保落库的 `06_human_verified.json` 数据绝对合规。
 
-### 2.3 🎯 自适应坐标重组引擎 (Adaptive Coordinate Alignment)
-- **痛点**：在数据复核时，一旦医生增删了底层 OCR 的原始文本，原本提取出的所有实体坐标（start/end）将瞬间全部错位失效。
-- **创新**：在前后端构筑了“坐标偏移修复”算法。医生保存修改后的文本时，系统会自动在新文本中重新映射所有实体的绝对坐标。若某实体的宿主词汇被医生删除，该实体标签将极具“生物学特性”地自动湮灭，保证了底层 JSON 数据的绝对纯净。
+### 2.3 类 IDE 沉浸式人机协同工作站 (Immersive Human-in-the-Loop)
+> **技术栈**: `自适应弹性网格` | `DOM 坐标重组引擎` | `启发式智能摘要`
+- **现代化非对称全景视口**：全面摒弃拥挤的后台管理网格，打造类似 VSCode 的“左侧聚合中枢 + 右侧沉浸工作区”布局。在纯文本直通模式下，系统动态销毁图像占位容器，将高亮映射区 100% 满宽自适应平铺。
+- **毫秒级手术刀微操反馈**：首创“文本偏移隐式修复引擎”。医生可直接在原文划词增删实体，系统仅将修改的单段文本发往大模型进行**局部张量重载**，并自动重新对齐全篇绝对坐标，实现页面零闪烁的完美交互；系统生成的 AI 辅诊摘要支持一键点击注入草稿垫，打通“AI 提议 - 人工定夺”的最后一公里。
 
-### 2.4 🖱️ 类 IDE 沉浸式人机协同工作站 (Immersive MLOps Workspace)
-- **现代非对称双栏架构**：全面摒弃传统后台系统拥挤的网格排版，重构为类似 VSCode / 现代 HIS 系统的“左侧聚合控制台 + 右侧沉浸工作区”布局。
-- **左侧全局控制中枢 (Sidebar)**：将 EMPI 患者网关、多模态影像采集通道、归档元数据以及多维电子病历库（树状目录与检索引擎）完美纵向聚合，为医生提供统一且固定的操作锚点。
-- **右侧宽广工作区 (Main Workspace)**：释放了全屏超过 75% 的横向空间，使得【溯源视图】中的医疗原图与实体高亮文本得以舒展并列排布，彻底消灭文字挤压换行，极大降低了医生的视觉疲劳与图文对照复核负担。
-- **全局动态交互反馈**：内置隐式坐标漂移修正引擎，支持划词新增、点击修改实体属性。所有修改引发的渲染刷新均为无感级，并配有全局绿色 Toast 成功提示，提供极致流畅的交互确认感。
-
-### 2.5 🏥 强临床约束与动态标准化电子病历 (Dynamic EMR & Clinical Constraints)
-- **动态表单与质控引擎**：彻底摒弃前端硬编码，表单字段（如姓名、主诉、现病史）与**质控必填项**全部交由 `rules.json` 动态下发。医生可随时在全局设置中增删表单结构，前端即时重绘。
-- **全局 CDSS 拦截网关 (强化版)**：不仅仅监控 AI 提取的实体，现在的 CDSS 网关会**实时双向监听**医生在表单中纯手工敲入的文本。一旦手写处方与过敏史发生碰撞，瞬间触发跨组件的血红色高危预警。
-- **底线级数据质控**：执行动态强约束拦截，归档时自动扫描所有被标记为必填的动态字段，缺失则实施物理拦截并转移焦点。
-
-### 2.6 🧠 智能辅诊摘要与签名归档 (Intelligent Diagnosis & Auto-Summary)
-- **基于阳性体征的逻辑推演**：引擎在提取完实体后，会自动聚合过滤出**阳性疾病**与**阳性症状**，自动生成专业话术摘要（如 *“模型检出阳性疾病指征：囊肿。伴随主要病理症状：肿痛。”*）。
-- **交互式草稿垫**：生成的智能摘要以“绿色胶囊”形式展示，医生点击即可一键采纳至【最终诊断结论】编辑框中，支持人工二次批改与补充后合并入库，形成完美的“AI 提议 - 人工定夺”闭环。
-
-### 2.7 🎛️ 现代化 MLOps 全量配置中枢 (Bi-directional Global Console)
-- **高级面板**：摒弃反人类的纯代码调参，在 Web 端实现平滑滑出的大型抽屉式配置中枢，统管 `model.json`、`rules.json`、`global_settings.json` 三大核心配置文件。
-- **GUI ⇆ JSON 双向实时同步**：支持通过可视化的下拉框、开关、卡片增删来修改参数（如 OCR 纠错字典、CDSS 拦截网关）。切换至【开发者底层模式】时，所有修改将瞬间无缝序列化为 JSON，支持直接进行纯文本热修改。
-- **一键恢复出厂设置 (Factory Reset)**：支持沙盒式破坏性测试，一键即可从 `_default.json` 自动回滚配置并执行秒级内存热重载。
-
-### 2.8 📇 EMPI 患者主索引与历史档案继承 (Enterprise Master Patient Index)
-- **前置身份网关 (Identity Gateway)**：遵循标准 HIS 业务流，工作站启动前强制挂起，要求医生提取老患者档案或建档新患者。选定后，工作站华丽变身为“绿灯就绪”状态。
-- **跨时空档案继承**：针对复诊老患者，底层 `StorageEngine` 会自动寻址其历史快照，**静默提取其历史“既往史”与“过敏史”**。即使本次病历扫描件上未提及过敏史，系统也会强制继承历史过敏原进入本轮状态机，完美堵死漏诊导致的 CDSS 预警失效漏洞。
-
-### 2.9 ⚡ 双模态分流解析管线 (Dual-Pipeline Architecture)
-- **多模态文件支持**：打破单一的图片限制，系统现已原生集成 `PyMuPDF` 与 `python-docx` 引擎。支持直接上传 PDF（自动执行超采样栅格化转图）、Word (`.docx`) 与纯文本 (`.txt`)。
-- **纯文本直通车 (Text-Direct Mode)**：针对已数字化的病历或医生直接复制粘贴的文本，系统提供“文本直通”管线。物理绕过庞大且耗时的 OCR 感知层，实现毫秒级的纯文本跨层直通 NER 认知计算。
-- **自适应沉浸式视口**：当系统侦测到当前就诊记录走的是“纯文本直通”管线时，前端工作站会自动销毁左侧的无用图像占位框，将【溯源视图】的结构化文本映射区以 100% 宽度自适应平铺，提供极致的宽屏阅读体验。
-- **无锚点动态兜底**：即便输入的纯文本极为杂乱，没有任何诸如“主诉：”的标准锚点引导词，系统的动态截断引擎也会触发兜底机制，将其自动包裹进“综合病历文本”安全沙箱中送入大模型，确保信息零遗漏。
+### 2.4 现代化 MLOps 与动态热重载中枢 (Dynamic MLOps Console)
+> **技术栈**: `单例线程锁 (Threading.Lock)` | `GUI ⇆ JSON 双向序列化桥接`
+- **摆脱硬编码的全局统治台**：在 Web 端实现平滑滑出的大型抽屉式配置中枢，统管算力调度配置、模型置信度阈值、OCR 纠错字典、动态 EMR 表单结构以及 CDSS 拦截规则。
+- **零宕机 (Zero-Downtime) 规则演化**：支持傻瓜式可视化修改与高阶开发者纯 JSON 源码编辑。任何保存操作均依托底层的并发安全单例锁，在**不重启 Python 后端进程**的前提下瞬间执行内存级热重载，并自带“一键恢复出厂设置”的沙盒时光机功能。
 
 ---
 
-## 三、 🧠 系统架构与管线工作流 (Architecture & Workflow)
+## 三、 全栈系统架构与管线工作流 (Architecture & Workflows)
 
-系统采用高度解耦的流水线（Pipeline）设计。以下为本系统的人机协同与数据流转拓扑图：
+本系统采用高度解耦的微服务化流式（Streaming-Pipeline）设计。为全方位展示底层张量流转与业务编排，以下提供四个维度的核心架构图解（极具学术与工程参考价值）：
+
+### 3.1 系统总体层级拓扑 (Overall System Architecture)
+系统采用标准的四层架构，确保前端渲染、API 网关、AI 算力与底层存储的绝对物理隔离。
 
 ```mermaid
 graph TD
-    %% 样式定义
-    classDef c_input fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef c_ai fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef c_rule fill:#fff3e0,stroke:#e65100,stroke-width:2px;
-    classDef c_human fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
-    classDef c_storage fill:#eceff1,stroke:#37474f,stroke-width:2px;
-    classDef c_micro fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,stroke-dasharray: 5 5;
+    subgraph PresentationLayer ["表现层 Presentation Layer"]
+        UI["现代非对称双栏工作站 UI"]
+        Form["动态质控结构化表单"]
+        CDSS_UI["CDSS 视觉扫雷预警"]
+        Console["抽屉式 MLOps 配置中枢"]
+    end
 
-    %% 节点定义
-    A("多模态录入: 病历扫描件") --> B{"特征解析"}
-    B --> C["感知层: RapidOCR 引擎"]
-    C --"纠错字典清洗"--> D["中置截断: 锚点段落隔离"]
-    D --> E["认知层: MacBERT + GlobalPointer"]
-    E --> F["后置逻辑: 极性传导 & 嵌套消解"]
-    F --"聚合阳性指征"--> G["智能辅诊摘要生成"]
-    
-    G --> H["医疗智能工作站 (Web UI)"]
-    
-    H <-->|"左栏: 强约束病历表单"| I["双栏人机交互"]
-    H <-->|"右栏: AI 实体药丸一键采纳"| I
-    
-    I --"点击确认入库"--> J{"CDSS 拦截网关 & 强约束校验"}
-    J --"缺失必填 / 触发禁忌"--> K(("⛔ 视觉震慑阻断 & 焦点转移"))
-    K -.->|"重定向修复"| H
-    
-    J --"校验通过 & 医生签字"--> L[("持久层: 06_Human_Verified.json")]
-    
-    M(("🎛️ MLOps 全局配置中枢")) -.->|"JSON ⇆ GUI 双向同步 & 热重载"| C & E & J
-    
-    %% 底部样式绑定
-    class A,B c_input;
-    class C,E c_ai;
-    class D,F,G c_rule;
-    class H,I c_human;
-    class J,K,M c_micro;
-    class L c_storage;
+    subgraph GatewayLayer ["调度与网关层 Gateway Layer"]
+        API["Flask RESTful 路由总线"]
+        Auth["EMPI 跨时空身份锁屏网关"]
+        Router["文件类型智能侦测分流器"]
+    end
+
+    subgraph CoreEngineLayer ["神经计算与逻辑中台 Core Engine Layer"]
+        Processor["数据中台: 清洗 / 截断 / 极性传导"]
+        
+        subgraph Perception ["视觉感知 Perception"]
+            PDF["PyMuPDF 2x栅格化"]
+            Docx["Word 富文本提取"]
+            OCR["RapidOCR 视觉引擎"]
+        end
+        
+        subgraph Cognition ["语义认知 Cognition"]
+            BERT["MacBERT 预训练基座"]
+            GP["RoPE GlobalPointer 解码"]
+        end
+    end
+
+    subgraph PersistenceLayer ["持久化与状态层 Persistence Layer"]
+        JSON[("全生命周期快照 01-06.json")]
+        Cfg[("动态配置池 rules.json")]
+        Search["多模态跨病历检索引擎"]
+    end
+
+    UI <-->|"AJAX / 状态机同步"| API
+    API <--> Auth
+    API <--> Router
+    Router --> PDF
+    Router --> Docx
+    Router --> OCR
+    Router --> Processor
+    OCR --> Processor
+    Processor <--> BERT
+    BERT --> GP
+    GP --> Processor
+    API <--> JSON
+    API <--> Cfg
+    API <--> Search
+    Cfg -.->|"Hot-Reload 单例热更新"| Processor
+    Cfg -.-> GP
+    Cfg -.-> API
 ```
-### 🌊 管线流转解析 (Pipeline Breakdown)
 
-**[多模态感知]**：系统接收病历影像，`app/ocr.py` 驱动引擎提取坐标与文本。随即触发 DataProcessor 进行前置纠错清洗。
+### 3.2 双模态智能分流管线 (Dual-Modal Pipeline Workflow)
+针对不同类型的医疗数据载体，系统能够智能寻址并触发物理熔断，实现算力的最优化调配。
 
-**[神经认知推理]**：纯净文本流进入 `app/ner.py`，加载注入了 RoPE 旋转位置编码的 GlobalPointer 网络，在特征空间完成实体张量解码。
+```mermaid
+flowchart TD
+    Start(["接诊: 获取前端上传载荷"]) --> ModeCheck{"侦测输入文件模态"}
+    
+    %% 文本直通管线
+    ModeCheck -- "TXT / Docx / 纯文本" --> TextExtract["原生文本解析抽取"]
+    TextExtract --> Bypass["触发纯文本直通模式"]
+    Bypass --> |"物理熔断 OCR 层, 节约算力"| Clean["数据中台: 全角/半角清洗"]
+    
+    %% 图像感知管线
+    ModeCheck -- "JPG / PNG / PDF" --> IsPDF{"是否为 PDF?"}
+    IsPDF -- "是" --> PDFRender["矩阵运算: 2x超采样高清栅格化"]
+    PDFRender --> OCR["唤醒 RapidOCR 张量提取"]
+    IsPDF -- "否" --> OCR
+    OCR --> Clean
+    
+    %% 融合与兜底
+    Clean --> Regex{"正则锚点命中?"}
+    Regex -- "未命中" --> Fallback["触发兜底机制: 封装入沙箱"]
+    Regex -- "命中" --> Section["执行段落物理切片"]
+    
+    Fallback --> NER["移交 NER 神经认知网络"]
+    Section --> NER
+    NER --> Output(["生成结构化张量并下发视图"])
 
-**[逻辑处理约束]**：提取出的实体交由规则引擎，执行锚点物理切分与实体黑名单降噪，剔除假阳性数据，输出初步 AI 结构化草案。
+    classDef fast fill:#dcfce7,stroke:#22c55e,stroke-width:2px;
+    class Bypass fast;
+    classDef fallback fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    class Fallback fallback;
+```
 
-**[人机协同干预]**：医生在 Web 智能工作站进行图文溯源比对。如有识别误差，可实时修正并经由 Data Flywheel 反哺底层库。
+### 3.3 深度语义认知与极性推演流 (Deep Cognition & Polarity Flow)
+展示从一段粗糙的文本到生成具备“阳性/阴性”逻辑属性的结构化实体的算法全过程。
 
-**[封卷持久化]**：医生补充强制结构化表单（如既往史、过敏史）后提交，系统生成防篡改追踪标签并落库至 `output/` 树状目录。
+```mermaid
+graph LR
+    Input(["原始段落切片"]) --> Tokenizer["BertTokenizerFast 编码"]
+    Tokenizer --> |"input_ids, mask"| MacBERT["MacBERT 特征提取层"]
+    MacBERT --> |"last_hidden_state"| Dense["Dense 降维投影"]
+    
+    Dense --> RoPE["注入 Sinusoidal 旋转位置编码"]
+    RoPE --> Score["计算 Token-Pair 关联概率矩阵"]
+    Score --> Threshold["置信度阈值过滤"]
+    
+    Threshold --> Filter["滤除无效 Padding 坐标"]
+    Filter --> Nested["MLF 实体嵌套消解算法"]
+    
+    Nested --> Polarity["滑动窗口极性辖域扫描"]
+    Polarity --> |"无/否认/未见"| Neg["标记为: 阴性或排除"]
+    Polarity --> |"常规语境"| Pos["标记为: 阳性或确诊"]
+    
+    Neg --> Result(["输出高质量实体集"])
+    Pos --> Result(["输出高质量实体集"])
+    
+    classDef rope fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    class RoPE rope;
+    classDef nested fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    class Nested nested;
+    classDef polarity fill:#ffebee,stroke:#c62828,stroke-width:2px;
+    class Polarity polarity;
+```
+
+### 3.4 MLOps 人机协同与 CDSS 时序交互 (HITL & CDSS Sequence)\
+抛弃 AI 黑盒，展示医生如何通过 UI 干预模型的输出，并触发底层的安全拦截网关。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Doc as 医生 (Doctor)
+    participant UI as 前端状态机 (Frontend)
+    participant API as 后端调度器 (Backend)
+    participant Model as 神经推理层 (AI Model)
+    participant Storage as 强约束网关与存储 (Storage)
+
+    Doc->>UI: 划选遗漏词汇，点击设为实体
+    UI->>UI: 自动计算基于当前段落的绝对坐标
+    UI->>API: 触发实时 CDSS 校验
+    
+    alt 触发处方禁忌 (如: 青霉素过敏->阿莫西林)
+        API-->>UI: 返回致命预警指令
+        UI-->>Doc: 页面顶部炸出血红色闪烁警告
+    end
+
+    Doc->>UI: 发现 OCR 错词，执行字典纠错反哺
+    UI->>API: 发送错词映射对
+    API->>Storage: 写入 rules.json 触发单例热重载
+    API-->>UI: 提示 知识反哺成功，后续生效
+
+    Doc->>UI: 修改左侧表单大段文本
+    UI->>API: 触发 /api/dynamic_ner 局部微服务
+    API->>Model: 仅发送被修改的段落 (节省算力)
+    Model-->>UI: 返回局部重组坐标，页面无感刷新
+
+    Doc->>UI: 点击确认终态并入库
+    UI->>Storage: 提交 06_Human_Verified.json
+    alt 遗漏必填项 (如: 主诉为空)
+        Storage-->>UI: 执行物理拦截
+        UI-->>Doc: 红色描边锁定错误字段，强制转移焦点
+    else 质控通过
+        Storage->>Storage: 落库持久化，追加防篡改时间戳
+        UI-->>Doc: 提示入库成功，流转至下一位患者
+    end
+```
 
 ---
 
-## 四、 📁 目录结构与模块深度解析 (Project Structure)
+## 四、 目录结构与模块深度解析 (Project Structure)
 
-本项目严格遵循现代软件工程规范，实现了前后端分离、业务代码与配置解耦的底层架构设计。
+本项目严格遵循现代软件工程规范，实现了前后端分离、业务代码与配置解耦的底层架构设计。以下为本系统的完整物理工程目录树 :
 
 ```text
-/Medical_EMR_System/
-├── app/                           # 核心推理引擎与处理中枢
-│   ├── config_manager.py          # [核心] 单例模式配置管家，支撑全链路内存热重载
-│   ├── exceptions.py              # 自定义系统层级异常类
-│   ├── model.py                   # GlobalPointer (带 RoPE 旋转位置编码) 算子结构
-│   ├── ner.py                     # MacBERT 认知层推理引擎
-│   ├── ocr.py                     # RapidOCR 感知层推理引擎
-│   ├── processor.py               # [核心] 逻辑处理管家 (切片、降噪、纠错清洗)
-│   └── storage.py                 # 持久层 IO 与 CDSS 规则碰撞引擎
-├── configs/                       # 🎛️ 现代化配置中心
-│   ├── model.json                 # 算法超参数与模型硬件配置
-│   ├── rules.json                 # 业务规则：CDSS网关、OCR飞轮字典、段落锚点
-│   ├── global_settings.json       # 系统级参数
-│   ├── model_default.json         # [沙盒备份] 恢复出厂设置依赖
-│   ├── rules_default.json         # [沙盒备份] 恢复出厂设置依赖
-│   └── global_settings_default.json # [沙盒备份] 恢复出厂设置依赖
+/Medical_EMR_Intelligence/         # 项目根目录
+├── app/                           # 核心算子与后端控制逻辑层
+│   ├── __init__.py                # 包声明文件
+│   ├── config_manager.py          # [核心] 线程安全的单例动态配置总线
+│   ├── exceptions.py              # 全局自定义异常捕获池
+│   ├── model.py                   # PyTorch GlobalPointer 神经网络架构
+│   ├── ner.py                     # MacBERT 认知与张量切片推理算子
+│   ├── ocr.py                     # RapidOCR 多模态视觉感知提取算子
+│   ├── processor.py               # 数据清洗、正则截断与极性传导逻辑中台
+│   ├── storage.py                 # I/O 持久层、CDSS 碰撞与多模态检索引擎
+│   └── train.py                   # 独立的神经认知层 Fine-tuning 微调脚本
+│
+├── configs/                       # 动态规则与热重载中枢
+│   ├── global_settings.json       # 算力调度 (CPU/CUDA) 等系统级参数
+│   ├── model.json                 # NER 阈值、标签映射字典 (id2label)
+│   ├── rules.json                 # CDSS 拦截簇、纠错字典、动态表单渲染架构
+│   └── *_default.json             # 各配置的沙盒备份（用于恢复出厂设置）
+│
+├── data/                          # 训练数据集存放区
+│   └── cmeee_v2/                  # CMeEE-V2 医疗命名实体识别语料库
+│
+├── docs/                          # 项目文档区
+│   └── API_REFERENCE.md           # 开发者 API 与底层接口参考手册
+│
 ├── models/                        # 模型权重挂载区
 │   └── ner_model.pt               # 基于医疗语料微调的本地张量权重
-├── output/                        # 数据落库区
-│   └── patient_records/           # 按照就诊批次生成的防篡改归档快照矩阵
-├── static/                        # 前端静态资源 (分离关注点设计)
-│   ├── css/style.css              # 毛玻璃质感 (Glassmorphism) 全局样式表
-│   └── js/main.js                 # 动态交互状态机与双向同步中枢逻辑
+│
+├── output/                        # 生产环境数据持久化归档区
+│   └── patient_records/           # 自动生成的患者 EMPI 标识目录
+│       └── PID_XXXXXX/            # 以哈希值隔离的患者终身档案
+│           └── V_20260310_.../    # 就诊流水快照 (包含01源图至06核验库文件)
+│
+├── static/                        # 前端静态资产与交互脚本
+│   ├── css/style.css              # 玻璃拟物态渲染规范与主题
+│   └── js/main.js                 # 极其硬核的前端状态机与微操流转控制
+│
 ├── templates/                     # 视图渲染层
-│   └── index.html                 # 智能医疗工作站控制台 UI
-├── main.py                        # 业务流管线总控调度器 (Pipeline 主入口)
-├── web.py                         # Flask 微服务宿主 (提供可视化路由与重载 API)
-└── requirements.txt               # 依赖清单
+│   └── index.html                 # 现代非对称双栏沉浸式工作站 UI
+│
+├── uploads_temp/                  # 运行时的多模态文件 (图片/PDF/文档) 临时缓存区
+│
+├── main.py                        # 基于 DAG 的双模态主调度器 (Pipeline 主入口)
+├── web.py                         # Flask 宿主、API 路由网关与 PDF 栅格化挂载
+├── requirement.txt                # 生产环境依赖清单
+└── readme.md                      # 项目说明文档
 ```
 
 ---
 
-## 五、 🛠️ 技术栈选型 (Tech Stack)
-- **算法基座 (AI Foundation)**: PyTorch, HuggingFace Transformers, PaddleOCR
+## 五、 技术栈选型 (Tech Stack)
 
-- **核心网络 (Core Network)**: MacBERT (预训练掩码语言模型) + GlobalPointer (解决实体嵌套与重叠)
+本项目在选型上兼顾了**学术前沿算法**与**工业级落地稳定性**，构建了极度解耦的全栈解决方案：
 
-- **后端架构 (Backend Microservices)**: Flask, RESTful API 动态调度
+### AI 模型与算法层 (AI & Deep Learning)
+- **深度学习框架**: `PyTorch 2.x`
+- **预训练语言基座**: `HuggingFace Transformers` (`hfl/chinese-macbert-base`)
+- **核心解码网络**: `GlobalPointer` (内嵌 `RoPE` 旋转位置编码，从数学底层降维打击实体嵌套与重叠问题)
+- **多模态视觉感知**: `RapidOCR` (基于 `ONNXRuntime` 的极速轻量级推理，替代传统笨重的独立 OCR 服务)
 
-- **前端工作站 (Frontend UI/UX)**: Bootstrap 5, HTML5/CSS3, 原生 JavaScript 状态机
+### 后端调度与数据中台 (Backend & Data Ops)
+- **微服务路由宿主**: `Flask` (RESTful API), `Werkzeug`
+- **文档解析引擎**: `PyMuPDF (fitz)` (支持 PDF 矩阵运算与 2x 超采样栅格化), `python-docx` (Word 富文本提取)
+- **底层状态与流转**: 基于 `Threading.Lock` 的并发安全单例模式，以及隐式绝对坐标漂移补偿算法
 
-- **工程化概念 (Engineering Concepts)**:
+### 沉浸式前端工作站 (Frontend UI/UX)
+- **布局与视觉骨架**: `Bootstrap 5`, `HTML5/CSS3`
+- **交互与状态机引擎**: 原生 `Vanilla JavaScript (ES6)`, 采用 `SessionStorage` 实现跨路由防丢锁，引入 `ResizeObserver` 防治内存泄漏
+- **设计语言**: `Glassmorphism` (现代磨砂玻璃拟物化视效), 弹性的跨设备响应式自适应网格
 
-- **MLOps**: 内存热重载 (Hot Reloading)、JSON ⇆ GUI 双向同步
-
-- **Human-in-the-Loop**: 实体药丸一键采纳 (Entity Chips)、数据飞轮 (主动纠错学习)
-
-- **HIS 业务流**: 强临床约束表单校验、CDSS (临床决策支持系统) 禁忌预警
-
-- **文档解析引擎 (Document Parsing)**: PyMuPDF (高速 PDF 栅格化), python-docx (Word 富文本提取)
+### 高阶工程化范式 (Advanced Engineering Paradigms)
+- **零宕机 MLOps**: 内存级配置热重载 (Hot-Reloading)、`GUI ⇆ JSON` 双向绑定与无缝序列化
+- **人机协同 (Human-in-the-Loop)**: 划词单段微服务重载、字典知识反哺闭环、AI 实体药丸 (Entity Chips) 一键注入
+- **HIS 级业务风控体系**: EMPI 历史过敏档案跨时空继承、CDSS 实时高压禁忌预警、防篡改签名与归档强约束质控
 
 ---
 
-## 六、 🚀 部署与使用指南 (Deployment & Usage)
+## 六、  部署与使用指南 (Deployment & Usage)
 
-### 6.1 环境准备
-本系统基于 Python 3.9+ 构建，建议使用 Anaconda / Miniconda 创建独立的虚拟环境。
-``` bash
+### 6.1 环境准备 (Environment Setup)
+本系统基于 **Python 3.9+** 构建，为避免环境冲突，强烈建议使用 Anaconda / Miniconda 创建独立的虚拟环境。
+
+```bash
 # 1. 克隆或下载本项目至本地
-# 2. 安装核心运算与应用依赖
-pip install -r requirements.txt
+git clone [https://github.com/your-username/Medical_EMR_Intelligence.git](https://github.com/your-username/Medical_EMR_Intelligence.git)
+cd Medical_EMR_Intelligence
+
+# 2. 创建虚拟环境并激活
+conda create -n emr_ai python=3.10
+conda activate emr_ai
+
+# 3. 安装核心运算与 Web 宿主依赖
+pip install -r requirement.txt
 ```
 
 ### 6.2 模型装载
-由于平台限制，预训练模型权重需自行挂载：
-1. 请确保已将微调后的 ner_model.pt 放置于 `/models/` 目录下。
-2. 系统运行前将自动下载 `hfl/chinese-macbert-base` 基础词表（如处于内网离线环境，请提前缓存至本地并在 model.json 中更改寻址路径）。
+由于平台对大文件的限制，预训练模型及微调权重需自行挂载：
+
+NER 张量权重：请确保已将微调后的 `ner_model.pt` 放置于项目根目录的 `/models/` 文件夹下。
+
+NLP 预训练基座：系统首次运行前将自动从 HuggingFace 下载 `hfl/chinese-macbert-base`。
+
+>   **离线部署提示 (Offline Mode)**：若服务器处于内网物理隔离环境，请提前将 MacBERT 权重下载至本地，并在 Web 端设置中心的 `model.json` 面板中，将寻址路径更改为本地绝对路径。
+
+
 
 ### 6.3 启动智能中枢
 在项目根目录执行以下命令唤起 Web 服务：
 ```bash
 python web.py
 ```
-终端提示 `Running on http://0.0.0.0:5000/` 后，使用现代浏览器（推荐 Chrome / Edge）访问 `http://127.0.0.1:5000/` 即可进入工作站。
+当终端提示
+``` bash
+* Running on all addresses (0.0.0.0)
+* Running on http://127.0.0.1:5000
+* Running on http://X.X.X.X:5000
+```
+时，表示神经计算图已构建完毕。使用现代浏览器（推荐 Chrome / Edge）访问 `http://127.0.0.1:5000/` 即可进入工作站。
 
-### 6.4 操作指南与 MLOps 交互演示
-0. **前置确立患者身份 (EMPI 网关)**：
-   - 进入系统后，影像采集通道将被锁定。必须在左侧点击【确立/切换】弹出 EMPI 网关。
-   - 可在下拉框提取历史患者（自动带入人口统计学信息），或填写基础信息建档新患者。锁定身份后，工作站解锁进入“就绪状态”。
+### 6.4 交互演示与 MLOps 操作手册 (Workflow Walkthrough)
 
-1. **多模态数据采集与极性审查**：
-   - 确立患者身份后，在左侧【多模态采集解析流】面板中选择模式。
-   - **影像感知**：可上传 JPG/PNG 照片或 PDF 扫描件（系统会自动提取 PDF 首页并进行高清放大渲染）。
-   - **文本直通**：可直接上传 TXT/Word 文档，或在文本框中直接粘贴长文本。系统将闪电直通结构化认知层。
-   - 在右侧【语义识别投影】区，**灰色且带有红色(排除)字样并划掉的实体**，代表被系统“极性传导引擎”判定为阴性（如：否认糖尿病）。
+> [!IMPORTANT]
+> **前置屏障：确立患者身份 (EMPI 网关)**
+> 遵循真实 HIS 规范，进入系统后影像采集通道将处于**默认锁定**状态。必须首先点击左侧【确立/切换】弹出 EMPI 网关，提取历史患者或建档新患者。锁定身份后，工作站方可解锁并进入“绿灯就绪”状态。
 
-2. **沉浸式人机协同干预 (核心操作)**：
-   - **划词新增**：用鼠标划选任意黑色文本，系统将自动在光标上方弹射【悬浮舱】。点击“设为实体”并选择类别，即可动态注入新实体。
-   - **悬浮纠错**：划选 OCR 识别错误的乱码，点击悬浮舱的“字典纠错”，错词将自动带入输入框，输入正词即可触发数据飞轮反哺底层库。
-   - **属性/极性翻转**：直接点击任意已高亮的实体色块，即可在弹窗中一键修改其所属类别（如将症状改为疾病），或一键翻转极性。
+#### 1.多模态数据采集与极性审查
+* **影像感知 (Image Perception)**：上传包含医疗文本的 JPG/PNG 或 PDF 扫描件（底层引擎将自动提取 PDF 首页并进行 2x 矩阵高清放大渲染）。
+* **文本直通 (Text Direct)**：直接上传 TXT/Word 文档，或在文本框中粘贴长文本。系统将闪电直通结构化认知层。
+* **极性视觉映射**：在右侧【语义识别投影】区，**灰色且带有红色(排除)字样并划掉的实体**，代表被系统“极性传导引擎”判定为阴性历史（如：*否认高血压*）。
 
-3. **微服务流转与自适应坐标重构**：
-   - 点击任意段落右上角的 **[✏️ 增删文本]**。
-   - 修改或新增原始病历文本后，点击 **[向下传导 (重载 NER 识别本段)]**。系统将**仅把修改后的单段文本**发往底层大模型进行局部重载，并自动对齐所有实体的绝对坐标，实现页面无感刷新。
-   - **CDSS 触发测试**：若人为将处方文本修改为“青霉素”，且既往史段落存在“青霉素过敏”字样，系统将实时拦截并爆出红色的高危预警。
+#### 2.沉浸式人机协同干预 (HITL Micro-ops)
+* **划词新增 (Zero-Shot Entity)**：用鼠标划选任意遗漏文本，系统将在光标上方弹射【悬浮舱】。点击“设为实体”并选择类别，即可动态注入特征空间。
+* **悬浮纠错 (Data Flywheel)**：划选 OCR 识别错误的乱码，点击“字典纠错”，输入正确词汇即可触发数据飞轮，永久反哺底层清洗规则库。
+* **属性翻转**：点击任意已高亮的实体色块，即可在弹窗中一键修改其所属类别，或**一键翻转阴阳极性**。
 
-4. **结构化复核与一键采纳**：
-   - 切换至【结构化复核】标签页，光标点击左侧标准病历表单的对应文本框使其高亮。
-   - 点击右侧悬浮的“实体药丸（Chips）”，即可自动拼接入当前文本框，阴性实体将智能补充“无”字前缀。
+#### 3.局部微服务流转与自适应重构
+* **无感刷新重载**：点击任意段落右上角的 `[增删文本]` 进行修改。完成后点击 `[向下传导]`，系统**仅将修改后的单段文本**发往底层大模型进行局部张量重载，并自动对齐全篇的绝对坐标，实现页面零闪烁刷新。
+* **CDSS 触发测试**：尝试人为将处方文本修改为“青霉素”，若病历既往史段落存在“青霉素过敏”字样，系统将瞬间拦截并爆出**血红色高危预警**。
 
-5. **终态签署与强约束归档**：
-   - 切换至【逻辑入库】标签页，点击绿色 AI 智能辅诊胶囊，一键生成诊断草稿，医生可继续手动补充修改。
-   - 点击右下角【确认终态并入库】，系统将触发**强临床约束网关**（若遗漏“主诉”或“过敏史”，将被强制阻断并红色高亮警告），校验通过后生成最终防篡改的 `06_Human_Verified.json` 落库文件。
-   
-6. **全局中枢调度 (全局参数与规则控制台)**：
-   - 点击页面右上角按钮唤出设置中心。可在图形界面增删 CDSS 规则、OCR 纠错词，或切换硬件设备算力 (CPU/CUDA)。
-   - 支持无缝切换至【纯文本底层 (JSON)】模式直接编写代码，或随时使用【恢复出厂设置】进行安全回滚与热重载。
+#### 4.结构化复核与强约束归档 (Quality Gate)
+* **实体一键采纳**：切换至【结构化复核】标签页，光标定位到左侧标准表单框。点击右侧悬浮的“AI 实体药丸（Chips）”，即可自动无缝拼接入表单，阴性实体将智能补充“无”字前缀。
+* **AI 辅诊摘要**：在【逻辑入库】标签页，点击绿色“智能辅诊胶囊”，即可一键生成连贯的医学诊断草稿。
+* **强临床约束拦截**：点击【确认终态并入库】时，若遗漏了配置字典中规定的必填项（如“主诉”或“过敏史”），**系统将被强制物理阻断并红色高亮警告**。校验通过后，生成带时间戳防篡改的 `06_Human_Verified.json` 归档。
 
-7. **结束接诊与工作站重置**：
-   - 归档完成后，点击左侧新增的【结束接诊 / 重启工作台】按钮，可安全清空当前内存上下文，并重新唤起 EMPI 网关迎接下一位患者。
-
-------
-## 六、 🔌 开发者文档与 API 参考手册 (Developer Documentation)
-
-为了方便二次开发、学术复现以及与其他医疗信息化系统（如 HIS/LIS）的集成，本系统提供了极其详尽的底层模块说明与微服务接口规范。
-
-- 基于 DAG 的主干调度器源码逻辑
-
-- 局部 NER 热重载与 CDSS 拦截网关的 RESTful API 入参/出参标准
-
-- NLP 数据处理引擎（极性传导、坐标重构）的函数调用规范
-
-- `window.SYSTEM_CONTEXT` 前后端状态机的数据流转协议
-
-👉 **请参阅深度技术白皮书：[API_REFERENCE.md](docs/API_REFERENCE.md)**
-
-------
-## 七、 📚 数据集引用与致谢 (References & Acknowledgements)
-本系统在底层算法研究与模型微调阶段，深度依赖了开源社区的贡献，特此致谢：
-
--   CMeEE-V2 (Chinese Medical Entity Extraction)：感谢 CBLUE 平台提供的中文医疗命名实体识别开源数据集，为本项目的领域适应提供了坚实的数据基座。
--   MacBERT：感谢 HFL (哈工大讯飞联合实验室) 提供的中文预训练语言模型。
--   GlobalPointer：感谢苏剑林大佬提出的全局指针网络思想，优雅地解决了医疗文本的实体嵌套痛点。
--   RapidOCR：感谢跨平台的高效 OCR 开源框架。
+#### 5.全局中枢调度与重置 (Global Console)
+* **实时参数热控**：点击页面右上角 `[全局参数]` 按钮。可在可视化界面秒级增删 CDSS 规则、OCR 纠错词，或一键切换 `CPU / CUDA` 张量算力。
+* **纯文本开发者模式**：支持无缝切换至【纯文本底层 (JSON)】模式直接编写映射代码，或随时触发【恢复出厂设置】进行单例级内存热重载。
+* **状态清除**：归档完成后，点击左侧新增的【结束接诊 / 重启工作台】按钮，安全清空内存上下文，迎接下一位患者。
 
 ------
 
-## 八、 👨‍💻 作者与免责协议 (License)
-**开发作者**：SandHit
+## 七、 🔌 开发者文档与 API 参考手册 (Developer & API Reference)
+
+为了方便学术界复现、二次开发，以及与第三方医疗信息化系统（如 HIS/LIS/PACS）进行低耦合的无缝集成，本项目提供了底层算子说明与微服务接口规范。
+
+- **调度内核 (Orchestrator)**：基于 DAG（有向无环图）的双模态主干调度器源码逻辑与生命周期管理。
+- **微服务总线 (RESTful API)**：局部 NER 毫秒级热重载、CDSS 动态拦截网关的入参/出参严格校验标准。
+- **逻辑中台 (Data Processor)**：NLP 引擎核心算法（极性辖域传导、MLF 实体嵌套消解、绝对坐标重构）的函数级调用规范。
+- **内存状态机 (State Machine)**：`window.SYSTEM_CONTEXT` 跨路由防丢锁机制与双向 JSON 数据流转协议。
+
+> 详细的接口定义、类结构剖析与系统级扩展指南，请移步查阅：
+>  **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)**
+
+------
+
+## 八、 📚 数据集引用与致谢 (References & Acknowledgements)
+
+本系统的底层算法研究、模型微调与工程化落地，深度依赖并受益于开源社区的杰出贡献。特此向以下项目、平台与学者表达最诚挚的敬意：
+
+- **[CMeEE-V2 (Chinese Medical Entity Extraction)](https://tianchi.aliyun.com/dataset/95414)**：感谢 CBLUE (中文医疗信息处理挑战榜) 平台提供的权威开源数据集，为本项目的领域微调与张量拟合提供了坚实的数据基座。
+- **[MacBERT](https://github.com/ymcui/MacBERT)**：感谢 **HFL (哈工大讯飞联合实验室)** 开源的优秀中文预训练语言模型，为底层的深度语义特征提取提供了强大的算力支撑。
+- **[GlobalPointer](https://kexue.fm/archives/8373)**：感谢 **苏剑林 (Jianlin Su)** 提出的全局指针网络思想与数学架构，极其优雅且高效地降维解决了医疗文本中复杂的“实体嵌套与重叠”痛点。
+- **[RapidOCR](https://github.com/RapidAI/RapidOCR)**：感谢该团队开源的基于 ONNX 运行时的跨平台高效 OCR 框架，赋予了本系统极速的医疗影像视觉感知能力。
+
+> *“If I have seen further, it is by standing on the shoulders of giants.”* 
+>
+>  感谢所有为中文自然语言处理（NLP）与医疗信息化智能化添砖加瓦的开发者。
+
+------
+
+## 九、 👨‍💻 作者与免责协议 (License)
+**开发作者**：SandHit254
 **使用协议**：仅限学术答辩、技术交流与代码研讨使用。严禁用于任何真实的商业医疗、临床诊断与处方生成场景。
