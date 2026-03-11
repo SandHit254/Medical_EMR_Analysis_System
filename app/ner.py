@@ -1,14 +1,18 @@
 """
 模块名称：命名实体识别 (NER) 推理引擎模块
 功能描述：负责加载预训练的 BERT 语言模型与 GlobalPointer 权重，
-         对输入的切片文本进行特征编码与实体解码。
+         对输入的切片文本进行张量特征编码与实体解码。
 """
 
 import torch
 import os
+import logging
 from transformers import BertTokenizerFast, BertModel
 from app.model import GlobalPointer
 from app.config_manager import ConfigManager
+from app.exceptions import NERModelError
+
+logger = logging.getLogger(__name__)
 
 
 class NEREngine:
@@ -17,7 +21,10 @@ class NEREngine:
     def __init__(self):
         """
         初始化 NER 引擎。
-        从配置管理中心读取硬件设置、模型参数、标签映射字典，并完成权重加载。
+        从配置管理中心读取硬件调度策略、模型参数、标签映射字典，并完成权重加载至指定算力设备。
+
+        Raises:
+            NERModelError: 当模型权重文件缺失或格式不匹配时抛出。
         """
         sys_cfg = ConfigManager().get_section("system")
         ner_cfg = ConfigManager().get_section("ner")
@@ -35,37 +42,43 @@ class NEREngine:
         bert_path = ner_cfg.get("bert_pretrain_path")
         model_path = ner_cfg.get("checkpoint_path")
 
-        # 初始化分词器与编码器
-        self.tokenizer = BertTokenizerFast.from_pretrained(bert_path)
-        bert = BertModel.from_pretrained(bert_path)
+        # 寻址绝对路径
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if not os.path.isabs(model_path):
+            model_path = os.path.join(base_dir, model_path)
 
-        # 初始化自定义 GlobalPointer 头
-        self.model = GlobalPointer(
-            encoder=bert,
-            ent_type_size=len(self.categories),
-            inner_dim=ner_cfg.get("inner_dim", 64),
-            device=self.device,
-        )
+        if not os.path.exists(model_path):
+            raise NERModelError(
+                f"严重阻断：NER 权重文件缺失 [{model_path}]，请先运行 train.py 进行微调。"
+            )
 
-        # 加载微调权重并设定为评估模式
-        if os.path.exists(model_path):
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
-        self.model.to(self.device).eval()
+        try:
+            self.tokenizer = BertTokenizerFast.from_pretrained(bert_path)
+            bert = BertModel.from_pretrained(bert_path)
+            self.model = GlobalPointer(bert, len(self.categories), device=self.device)
+            self.model.load_state_dict(
+                torch.load(model_path, map_location=self.device, weights_only=True)
+            )
+            self.model.to(self.device)
+            self.model.eval()
+        except Exception as e:
+            raise NERModelError(f"模型装载失败，张量或架构不匹配: {str(e)}")
 
     def predict_chunk(self, text: str) -> list:
         """
-        对单句短文本进行实体抽取推理。
+        对单一切片文本进行实体提取推理。
 
         Args:
-            text (str): 长度受限于 max_len 的待处理短句。
+            text (str): 长度不超过 max_len 的待推理中文字符串。
 
         Returns:
-            list: 包含实体字典的列表，字典结构包含文本、类型、置信度以及起止坐标。
+            list: 包含提取出实体的字典列表，结构如：
+                  [{"text": "高血压", "type": "疾病", "start": 0, "end": 3, "score": 0.98}, ...]
         """
-        if not text:
+        # 【算力优化】：空文本短路拦截
+        if not text or not text.strip():
             return []
 
-        # 分词并返回字符级偏移量映射，用于准确截取原文
         tokenized = self.tokenizer(
             text,
             max_length=self.max_len,
@@ -78,7 +91,7 @@ class NEREngine:
         mask = tokenized["attention_mask"].to(self.device)
         offsets = tokenized["offset_mapping"][0].tolist()
 
-        # 冻结梯度进行推理
+        # 冻结梯度进行推理，释放显存
         with torch.no_grad():
             logits = self.model(input_ids, mask)[0]
             scores = torch.where(logits > self.threshold)
@@ -96,15 +109,16 @@ class NEREngine:
             if char_end - char_start < 1:
                 continue
 
-            # 类别索引转换为自然语言标签
-            cat_name = self.categories[cat_id]
+            cat_name = self.id2label.get(
+                self.categories[cat_id], self.categories[cat_id]
+            )
             entities.append(
                 {
                     "text": text[char_start:char_end],
-                    "type": self.id2label.get(cat_name, cat_name),
-                    "score": float(logits[cat_id, start_idx, end_idx]),
+                    "type": cat_name,
                     "start": char_start,
                     "end": char_end,
+                    "score": round(logits[cat_id, start_idx, end_idx].item(), 4),
                 }
             )
 

@@ -2,7 +2,7 @@
 模块名称：神经网络架构模块
 功能描述：定义用于命名实体识别 (NER) 的核心 PyTorch 模型结构。
          本模块实现了基于 RoPE (旋转位置编码) 的 GlobalPointer 网络，
-         专门用于解决医疗文本中常见的实体嵌套问题。
+         专门用于解决医疗文本中常见的实体嵌套与长实体识别问题。
 """
 
 import torch
@@ -14,7 +14,7 @@ class GlobalPointer(nn.Module):
     GlobalPointer 实体识别解码头。
 
     通过计算输入序列中任意两个 Token 之间的关联概率，直接预测实体的起始和终止位置。
-    内置 RoPE 旋转位置编码以增强模型对相对位置的感知能力。
+    内置 RoPE 旋转位置编码以增强模型对相对位置的上下文感知能力。
     """
 
     def __init__(
@@ -30,7 +30,7 @@ class GlobalPointer(nn.Module):
         Args:
             encoder (nn.Module): 预训练的语言模型编码器（如 MacBERT）。
             ent_type_size (int): 需要识别的实体类别总数。
-            inner_dim (int): 内部投影的维度大小，默认为 64。
+            inner_dim (int): 内部特征投影的维度大小，默认为 64。
             device (str): 运行设备标识 ('cpu' 或 'cuda')。
         """
         super().__init__()
@@ -40,14 +40,15 @@ class GlobalPointer(nn.Module):
         self.device = device
         self.hidden_size = encoder.config.hidden_size
 
-        # 将 BERT 的隐藏层输出映射到 Query 和 Key 所需的维度
+        # 降维与特征投影矩阵
         self.dense = nn.Linear(self.hidden_size, ent_type_size * inner_dim * 2)
+        nn.init.xavier_uniform_(self.dense.weight)
 
     def sinusoidal_position_embedding(
         self, batch_size: int, seq_len: int, output_dim: int
     ) -> torch.Tensor:
         """
-        生成正弦绝对位置编码。
+        生成绝对位置的正弦/余弦嵌入编码 (Sinusoidal Position Embedding)。
 
         Args:
             batch_size (int): 批次大小。
@@ -68,14 +69,14 @@ class GlobalPointer(nn.Module):
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor
     ) -> torch.Tensor:
         """
-        模型前向传播。
+        前向传播计算。
 
         Args:
-            input_ids (torch.Tensor): 输入序列的 Token ID。
-            attention_mask (torch.Tensor): 注意力掩码，区分有效文本与 Padding。
+            input_ids (torch.Tensor): 经过 Tokenizer 映射的输入序列特征矩阵。
+            attention_mask (torch.Tensor): 注意力掩码矩阵，用于屏蔽 Padding 位。
 
         Returns:
-            torch.Tensor: 形状为 (batch_size, ent_type_size, seq_len, seq_len) 的打分矩阵 (Logits)。
+            torch.Tensor: 形状为 (batch_size, ent_type_size, seq_len, seq_len) 的实体打分 logits 矩阵。
         """
         context_outputs = self.encoder(input_ids, attention_mask)
         last_hidden_state = context_outputs.last_hidden_state
@@ -100,15 +101,14 @@ class GlobalPointer(nn.Module):
         qw = (qw * cos_pos) + (rotate_half(qw) * sin_pos)
         kw = (kw * cos_pos) + (rotate_half(kw) * sin_pos)
 
-        # 计算内积，得到任意两点间的关联得分
+        # 计算得分矩阵并进行缩放 (Scaled Dot-Product)
         logits = torch.einsum("bmhd,bnhd->bhmn", qw, kw)
         logits = logits / self.inner_dim**0.5
 
-        # 排除 Padding 部分的干扰
+        # 掩码屏蔽机制：排除 Padding 与下三角矩阵的影响 (防止实体首尾坐标倒置)
         pad_mask = attention_mask.unsqueeze(1).unsqueeze(1)
         logits = logits * pad_mask - (1 - pad_mask) * 1e4
-
-        # 排除下三角部分的无效计算（实体的终点坐标必须大于等于起点坐标）
         mask = torch.triu(torch.ones_like(logits), diagonal=0)
+        logits = logits - (1 - mask) * 1e4
 
-        return logits - (1 - mask) * 1e4
+        return logits

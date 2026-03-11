@@ -1,26 +1,33 @@
 """
-模块名称：医疗命名实体识别 (NER) 模型表现与交互层
+模块名称：Web 路由网关与微服务宿主 (Flask Gateway)
+功能描述：基于 Flask 构建的 RESTful API 与视图渲染中心。
+         负责处理 HTTP 会话、文档多模态解析(PDF/Word栅格化)、
+         以及前后端 JSON 状态机的数据桥接与热重载分发。
 """
 
 import os
 import json
+import uuid
 import logging
 import shutil
-import fitz  # PyMuPDF 用于高速解析 PDF
-import docx  # 用于解析 Word 文档
+import fitz  # PyMuPDF 用于高速解析 PDF 扫描件
+import docx  # 用于提取 Word 富文本
 from flask import Flask, request, render_template, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
+# 物理隔绝 HuggingFace 的在线远端探活请求，强制完全本地离线运行
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["HF_UPDATE_DEFAULT_BETA"] = "False"
 
+# 延迟导入以防止应用启动时的循环依赖
 from main import run_medical_pipeline
 from app.config_manager import ConfigManager
 from app.storage import StorageEngine
 
 app = Flask(__name__)
 
+# 全局路径挂载
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads_temp")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output", "patient_records")
@@ -28,21 +35,26 @@ CONFIGS_DIR = os.path.join(BASE_DIR, "configs")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
-app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 提升至 32MB 以兼容较大的 PDF
+app.config["MAX_CONTENT_LENGTH"] = (
+    32 * 1024 * 1024
+)  # 提升最大载荷至 32MB 以兼容大型医学 PDF
 
-# 扩展支持的文件格式
+# 白名单校验集合
 ALLOWED_IMAGE_EXTS = {"png", "jpg", "jpeg", "bmp", "tiff", "pdf"}
 ALLOWED_TEXT_EXTS = {"txt", "docx"}
 
 
 def allowed_file(filename: str, allowed_set: set) -> bool:
+    """安全校验文件后缀"""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_set
 
 
-def get_emr_config():
+def get_emr_config() -> dict:
+    """动态读取并返回前端结构化表单的渲染规则"""
     rules_cfg = ConfigManager().get_section("rules")
     emr_struct = rules_cfg.get("emr_structure", {})
     if not emr_struct:
+        # 默认出厂容错表单结构
         emr_struct = {
             "standard_fields": [
                 "姓名",
@@ -64,6 +76,7 @@ def get_emr_config():
 
 @app.route("/", methods=["GET"])
 def index():
+    """主控台渲染路由"""
     return render_template(
         "index.html",
         record=None,
@@ -76,11 +89,17 @@ def index():
 
 @app.route("/uploads_temp/<filename>")
 def serve_image(filename):
+    """临时影像文件代理分发路由"""
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 
 @app.route("/analyze", methods=["POST"])
 def analyze_view():
+    """
+    核心多模态调度 API。
+    拦截前端多路上传请求，对文件进行鉴权、UUID 加盐隔离、PDF 栅格化等预处理后，
+    分发至 main.py 的对应管线执行处理，最后渲染并下发结果。
+    """
     patient_id = request.form.get("patient_id", "").strip()
     if not patient_id:
         from main import generate_patient_id
@@ -95,7 +114,7 @@ def analyze_view():
 
     try:
         # =================================================================
-        # 路由分支 1：图像感知 / PDF OCR 模式
+        # 分流管线 1：图像/PDF 视觉感知模式
         # =================================================================
         if "image" in request.files and request.files["image"].filename != "":
             file = request.files["image"]
@@ -107,21 +126,23 @@ def analyze_view():
                 )
 
             ext = file.filename.rsplit(".", 1)[-1].lower()
-            filename = secure_filename(file.filename)
+            # 【核心修复】：注入 UUID 盐值，彻底防止多用户并发上传同名文件的覆盖雪崩
+            safe_prefix = uuid.uuid4().hex[:6]
+            filename = f"{safe_prefix}_{secure_filename(file.filename)}"
             file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             file.save(file_path)
 
-            # 【核心】：PDF 栅格化引擎。将 PDF 渲染为 2 倍超采样分辨率的图像以保证 OCR 精度
+            # 动态 PDF 栅格化引擎：应用 2x 超采样矩阵转换为高清图像
             if ext == "pdf":
                 doc = fitz.open(file_path)
-                page = doc.load_page(0)  # 提取第一页
+                page = doc.load_page(0)
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                img_filename = f"{filename}_page0.jpg"
+                img_filename = f"{filename}_rendered.jpg"
                 img_path = os.path.join(app.config["UPLOAD_FOLDER"], img_filename)
                 pix.save(img_path)
                 doc.close()
                 file_path = img_path
-                filename = img_filename  # 将后续渲染和 OCR 的指针移交给生成的图片
+                filename = img_filename
 
             snapshot_dir = run_medical_pipeline(
                 image_path=file_path, patient_id=patient_id, patient_info=patient_info
@@ -129,12 +150,11 @@ def analyze_view():
             image_filename_for_view = filename
 
         # =================================================================
-        # 路由分支 2：纯文本 / 文档提取直通模式
+        # 分流管线 2：文档与纯文本直通模式
         # =================================================================
         else:
             raw_text = request.form.get("raw_text", "").strip()
 
-            # 尝试提取上传的 Word 或 TXT 文档
             if (
                 "text_file" in request.files
                 and request.files["text_file"].filename != ""
@@ -142,25 +162,27 @@ def analyze_view():
                 t_file = request.files["text_file"]
                 if allowed_file(t_file.filename, ALLOWED_TEXT_EXTS):
                     t_ext = t_file.filename.rsplit(".", 1)[-1].lower()
-                    t_path = os.path.join(
-                        app.config["UPLOAD_FOLDER"], secure_filename(t_file.filename)
+                    t_filename = (
+                        f"{uuid.uuid4().hex[:6]}_{secure_filename(t_file.filename)}"
                     )
+                    t_path = os.path.join(app.config["UPLOAD_FOLDER"], t_filename)
                     t_file.save(t_path)
 
+                    # 文本合并防粘连逻辑
                     if t_ext == "txt":
                         with open(t_path, "r", encoding="utf-8") as f:
-                            raw_text = f.read() + "\n\n" + raw_text
+                            raw_text = f.read().strip() + "\n\n" + raw_text
                     elif t_ext == "docx":
                         doc_obj = docx.Document(t_path)
                         full_text = "\n".join(
                             [para.text for para in doc_obj.paragraphs]
                         )
-                        raw_text = full_text + "\n\n" + raw_text
+                        raw_text = full_text.strip() + "\n\n" + raw_text
 
             if not raw_text.strip():
                 return render_template(
                     "index.html",
-                    error="系统拦截：未检测到任何有效的纯文本或文档内容。",
+                    error="系统拦截：未检测到任何有效的文本或文档内容。",
                     emr_config=get_emr_config(),
                 )
 
@@ -171,7 +193,7 @@ def analyze_view():
             )
             image_filename_for_view = None
 
-        # 视图渲染
+        # 装载分析快照并渲染至前端状态机
         json_target_path = os.path.join(snapshot_dir, "05_final_summary.json")
         if os.path.exists(json_target_path):
             with open(json_target_path, "r", encoding="utf-8") as f:
@@ -187,35 +209,40 @@ def analyze_view():
         else:
             return render_template(
                 "index.html",
-                error=f"缺失状态机文件 {json_target_path}",
+                error=f"数据流转异常：缺失状态机文件 [{json_target_path}]",
                 emr_config=get_emr_config(),
             )
 
     except Exception as e:
-        logging.error(f"视图渲染层捕获异常: {str(e)}", exc_info=True)
+        logging.error(f"全局异常捕获网关拦截异常: {str(e)}", exc_info=True)
         return render_template(
-            "index.html", error=f"内核级错误: {str(e)}", emr_config=get_emr_config()
+            "index.html",
+            error=f"内核计算或流转错误: {str(e)}",
+            emr_config=get_emr_config(),
         )
 
 
 @app.route("/save_report", methods=["POST"])
 def save_report():
+    """经由质控后的数据安全落库 API"""
     try:
         payload = request.json
         visit_id = payload.get("就诊编号")
         patient_id = payload.get("患者ID", "UNKNOWN")
         if not visit_id or not visit_id.startswith("V_"):
-            return jsonify({"status": "error", "message": "非法的就诊批次。"})
+            return jsonify({"status": "error", "message": "非法的就诊批次签名。"})
+
         patient_folder_name = (
             patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
         )
         target_dir = os.path.join(OUTPUT_DIR, patient_folder_name, visit_id)
         if not os.path.exists(target_dir):
-            return jsonify({"status": "error", "message": "无法寻址存储目录。"})
+            return jsonify({"status": "error", "message": "无法寻址到底层归档目录。"})
+
         save_path = os.path.join(target_dir, "06_human_verified.json")
         with open(save_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=4)
-        return jsonify({"status": "success", "message": "修正数据回存完毕。"})
+        return jsonify({"status": "success", "message": "质控确认，数据已回存。"})
     except Exception as e:
         return jsonify({"status": "error", "message": f"持久化 I/O 错误: {str(e)}"})
 
@@ -245,6 +272,7 @@ def search_library():
 
 @app.route("/records/<patient_id>/<visit_id>/image")
 def serve_record_image(patient_id, visit_id):
+    """防盗链机制下的历史图片提取隧道"""
     engine = StorageEngine()
     patient_folder = (
         patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
@@ -255,15 +283,18 @@ def serve_record_image(patient_id, visit_id):
 
 @app.route("/view/<patient_id>/<visit_id>", methods=["GET"])
 def view_record(patient_id, visit_id):
+    """历史就诊记录的视图状态重建"""
     try:
         engine = StorageEngine()
         patient_folder = (
             patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
         )
         visit_dir = os.path.join(engine.root, patient_folder, visit_id)
+
         target_file = os.path.join(visit_dir, "06_human_verified.json")
         if not os.path.exists(target_file):
             target_file = os.path.join(visit_dir, "05_final_summary.json")
+
         if os.path.exists(target_file):
             with open(target_file, "r", encoding="utf-8") as f:
                 record_data = json.load(f)
@@ -313,6 +344,7 @@ def create_new_patient():
 
 @app.route("/api/settings/all", methods=["GET", "POST"])
 def manage_settings():
+    """双向参数同步总线：处理设置中心的拉取与热重载覆盖"""
     try:
         if request.method == "GET":
             config_data = {}
@@ -330,8 +362,9 @@ def manage_settings():
                         os.path.join(CONFIGS_DIR, fname), "w", encoding="utf-8"
                     ) as f:
                         json.dump(request.json[key], f, ensure_ascii=False, indent=4)
+            # 唤醒内存热重载
             ConfigManager().reload()
-            return jsonify({"code": 200, "message": "配置已覆写并热重载。"})
+            return jsonify({"code": 200, "message": "配置已覆写并完成内存热重载。"})
     except Exception as e:
         return jsonify({"code": 500, "message": str(e)})
 
@@ -341,14 +374,15 @@ def restore_settings():
     try:
         restored = []
         for fname in ["rules", "global_settings", "model"]:
-            d_path, t_path = os.path.join(
-                CONFIGS_DIR, f"{fname}_default.json"
-            ), os.path.join(CONFIGS_DIR, f"{fname}.json")
+            d_path = os.path.join(CONFIGS_DIR, f"{fname}_default.json")
+            t_path = os.path.join(CONFIGS_DIR, f"{fname}.json")
             if os.path.exists(d_path):
                 shutil.copyfile(d_path, t_path)
                 restored.append(fname)
         ConfigManager().reload()
-        return jsonify({"code": 200, "message": f"成功恢复：{', '.join(restored)}"})
+        return jsonify(
+            {"code": 200, "message": f"成功恢复出厂设置：{', '.join(restored)}"}
+        )
     except Exception as e:
         return jsonify({"code": 500, "message": str(e)})
 
@@ -366,7 +400,7 @@ def add_ocr_correction():
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
         ConfigManager().reload()
-        return jsonify({"code": 200, "message": "反哺成功"})
+        return jsonify({"code": 200, "message": "知识反哺入库成功"})
     except Exception as e:
         return jsonify({"code": 500, "message": str(e)})
 
@@ -392,19 +426,21 @@ def dynamic_ner():
 def dynamic_cdss():
     try:
         payload = request.json
-        emr_text, extracted_texts = payload.get("emr_text", ""), [
-            e["text"] for e in payload.get("entities", [])
-        ]
+        emr_text = payload.get("emr_text", "")
+        extracted_texts = [e["text"] for e in payload.get("entities", [])]
         warnings = []
+
         for rule in ConfigManager().get_section("rules").get("cdss_rules", []):
             if rule["allergy"] in emr_text:
                 for drug in rule["drugs"]:
                     if drug in emr_text or any(drug in ent for ent in extracted_texts):
                         warnings.append(rule["warning"].replace("{drug}", drug))
+
         return jsonify({"code": 200, "warnings": list(set(warnings))})
     except Exception as e:
         return jsonify({"code": 500, "message": str(e)})
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
+    # 关闭自动重载 (use_reloader=False) 防止 PyTorch 多进程上下文复制导致的 Socket Windows 报错
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False, threaded=True)

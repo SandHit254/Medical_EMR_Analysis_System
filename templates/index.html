@@ -22,7 +22,7 @@
       .lib-card-hover:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; border-color: #93c5fd !important;}
     </style>
   </head>
-  <body class="container-fluid px-xl-4 pb-5">
+  <body class="container-fluid px-xl-4 pb-5 bg-light">
     
     <div class="toast-container position-fixed bottom-0 end-0 p-4" style="z-index: 1080;">
         <div id="systemToast" class="toast align-items-center text-white bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
@@ -93,12 +93,11 @@
                     <input type="hidden" name="patient_name" class="sync-pname" value="" />
                     <input type="hidden" name="patient_gender" class="sync-pgender" value="" />
                     <input type="hidden" name="patient_age" class="sync-page" value="" />
-                    
                     <div class="mb-3">
                         <label class="form-label small text-muted fw-bold">直接上传文档 (.txt, .docx)</label>
                         <input class="form-control form-control-sm border-success mb-2" type="file" name="text_file" accept=".txt, .docx" />
                         <label class="form-label small text-muted fw-bold">或手动粘贴纯文本病历</label>
-                        <textarea class="form-control form-control-sm bg-light border-success" name="raw_text" rows="4" placeholder="在此粘贴... (两者可同时使用，系统将自动合并)"></textarea>
+                        <textarea class="form-control form-control-sm bg-light border-success" name="raw_text" rows="4" placeholder="在此粘贴... (两者可同时使用)"></textarea>
                     </div>
                     <button type="submit" class="btn btn-success w-100 fw-bold upload-submit-btn"><i class="bi bi-fast-forward-circle"></i> 直通结构化认知层</button>
                   </form>
@@ -212,7 +211,6 @@
                     <span><strong>文本/文档直通模式激活</strong>：已跳过耗时图像感知层，为您全屏映射结构化语义张量。</span>
                   </div>
                 {% endif %}
-
                   <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
                     <h6 class="text-muted fw-bold mb-0 small tracking-wide">语义识别投影 <span class="badge bg-secondary ms-2 fw-normal shadow-sm">划词菜单 / 点击干预 / 增删重载</span></h6>
                   </div>
@@ -258,7 +256,7 @@
                       {% for field in extra_fields %}
                       <div class="col-md-12">
                         <label class="form-label fw-bold text-dark small mb-1">{{ field }}</label>
-                        <textarea class="form-control bg-light border-0 shadow-sm emr-input-target" name="{{ field }}" rows="3" style="transition: all 0.3s">{{ record.get('结构化病历', {}).get(field, '') }}</textarea>
+                        <textarea class="form-control bg-light border-0 shadow-sm emr-input-target" name="{{ field }}" rows="2" style="transition: all 0.3s">{{ record.get('结构化病历', {}).get(field, '') }}</textarea>
                       </div>
                       {% endfor %}
                     </div>

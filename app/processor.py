@@ -1,5 +1,5 @@
 """
-模块名称：数据处理引擎模块
+模块名称：数据中台与逻辑工程模块 (Data Processor)
 功能描述：负责处理文本的预处理（清洗、纠错）、中置处理（切句、段落划分）、
          以及后置处理（实体嵌套消解、极性分析、业务逻辑组装）。
 """
@@ -11,7 +11,6 @@ from app.config_manager import ConfigManager
 class DataProcessor:
     """
     文本与数据结构化处理核心类。
-
     提供一系列无状态的字符串处理、正则匹配与逻辑判定方法，
     作为感知层 (OCR) 与认知层 (NER) 之间的桥梁，保障流入大模型的文本纯净度。
     """
@@ -19,195 +18,128 @@ class DataProcessor:
     def __init__(self):
         """
         初始化数据处理器。
-
         从全局配置中心动态读取文本清洗、段落截断与极性传导所需的所有正则锚点与字典。
         """
         post_cfg = ConfigManager().get_section("post_processing")
         rules_cfg = ConfigManager().get_section("rules")
 
         self.enable_correction = post_cfg.get("enable_auto_correction", True)
-        self.corrections = ConfigManager().get_section("corrections")
+        self.corrections = rules_cfg.get("corrections", {})
 
         self.section_patterns = rules_cfg.get("section_patterns", [])
         self.negation_words = rules_cfg.get("negation_words", [])
-        self.short_fields = set(rules_cfg.get("short_fields", []))
-        self.time_pattern = rules_cfg.get(
-            "time_pattern", r"(\d+|[一二三四五六七八九十两半]+)(个)?(天|月|年|周|小时)"
-        )
 
     def clean_text(self, raw_text: str) -> str:
         """
-        利用修正字典对原始 OCR 文本进行纠错清洗。
+        执行 OCR 输出文本的清洗与字典校对。
 
         Args:
-            raw_text (str): 从 OCR 引擎输出的原始、可能包含乱码的脏文本。
+            raw_text (str): 原始粗糙文本。
 
         Returns:
-            str: 经过 rules.json 中 corrections 字典正则替换后的纯净文本。
+            str: 消除空格与换行，并应用 corrections 字典纠错后的连续纯净文本。
         """
-        if not self.enable_correction or not self.corrections:
-            return raw_text
+        text = raw_text.replace(" ", "").replace("\n", "。").replace("\r", "。")
+        text = re.sub(r"。+", "。", text)
 
-        cleaned = raw_text
-        for wrong, right in self.corrections.items():
-            cleaned = cleaned.replace(wrong, right)
-        return cleaned
+        if self.enable_correction:
+            for wrong, right in self.corrections.items():
+                text = text.replace(wrong, right)
+        return text
 
     def extract_clinical_sections(self, text: str) -> dict:
         """
-        采用锚点截断法，将连续的长文本切分为独立的临床病历段落。
-
-        通过匹配类似于 "1. 主诉：" 或 "【现病史】：" 的表头特征，将非结构化文本
-        转化为键值对结构，并特殊处理短字段边界以防止正则贪婪匹配越界。
+        基于正则锚点（如"主诉:"）对病历长文本进行段落截断与结构化。
 
         Args:
-            text (str): 待切分的全量连续文本。
+            text (str): 清洗后的连续长文本。
 
         Returns:
-            dict: 键为段落名称（如 '主诉'），值为对应段落内容的字典。
+            dict: 键为段落名，值为对应内容的字典。若无锚点则返回空字典。
         """
         sections = {}
         if not self.section_patterns:
             return sections
 
-        # 优先匹配较长的表头，防止被短表头截胡
-        sorted_patterns = sorted(self.section_patterns, key=len, reverse=True)
+        pattern = r"(" + "|".join(self.section_patterns) + r")[:：]?"
+        matches = list(re.finditer(pattern, text))
 
-        pattern_str = (
-            r"(?:(?:\d{1,2}|[一二三四五六七八九十])[、\.\s]+|【)?("
-            + "|".join(sorted_patterns)
-            + r")】?\s*[:：]"
-        )
+        if not matches:
+            return sections
 
-        found_headers = []
-        for match in re.finditer(pattern_str, text):
-            header_name = match.group(1)
-            if len(header_name) > 15:
-                continue
-            found_headers.append(
-                {"start": match.start(), "end": match.end(), "header": header_name}
-            )
-
-        found_headers.sort(key=lambda x: x["start"])
-
-        if found_headers and found_headers[0]["start"] > 0:
-            preamble = text[: found_headers[0]["start"]].strip(" ，。；、\n")
-            if preamble:
-                sections["头部信息"] = preamble
-
-        for i, current in enumerate(found_headers):
-            start_cut = current["end"]
-            if i + 1 < len(found_headers):
-                end_cut = found_headers[i + 1]["start"]
-                content = text[start_cut:end_cut]
-            else:
-                content = text[start_cut:]
-
-            content = content.strip(" ，。；、\n")
-
-            if current["header"] in self.short_fields:
-                parts = [
-                    p.strip() for p in re.split(r"[，,。；;]", content) if p.strip()
-                ]
-                if parts:
-                    content = parts[0]
-                    if content in self.section_patterns:
-                        content = ""
-                else:
-                    content = ""
-
-            sections[current["header"]] = content
+        for i, match in enumerate(matches):
+            section_name = match.group(1)
+            start_idx = match.end()
+            end_idx = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            content = text[start_idx:end_idx].strip(" 。，；,;")
+            sections[section_name] = content
 
         return sections
 
-    def split_into_chunks(self, text: str) -> list:
+    def split_into_chunks(self, text: str, max_len: int = 120) -> list:
         """
-        按物理标点切分长段落文本。
-
-        由于预训练语言模型（如 MacBERT）存在 Token 最大长度限制（如 512），
-        必须将长病历切分为短句阵列，防止显存溢出 (OOM) 并保证张量特征不丢失。
+        将超长段落安全切分为不超过模型限制长度的短句集合。
 
         Args:
-            text (str): 需要切分的单段长文本。
+            text (str): 待切分的长段落。
+            max_len (int): BERT 模型允许的最大序列长度 (扣除首尾特殊符)。
 
         Returns:
-            list: 以句号、分号或换行符分割后的短句字符串列表。
+            list: 字符串切片列表。
         """
-        if not text:
-            return []
+        sentences = re.split(r"([。！？；!?;])", text)
+        sentences.append("")
+        sentences = ["".join(i) for i in zip(sentences[0::2], sentences[1::2])]
 
-        chunks = [c.strip() for c in re.split(r"[。；\n]", text) if c.strip()]
+        chunks = []
+        current_chunk = ""
+        for s in sentences:
+            if not s:
+                continue
+            if len(current_chunk) + len(s) <= max_len:
+                current_chunk += s
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = s
+        if current_chunk:
+            chunks.append(current_chunk)
         return chunks
 
     def resolve_nested_entities(self, entities: list) -> list:
         """
-        消除嵌套实体，并执行黑名单过滤降噪。
-
-        当模型同时提取出 "左下腹" 和 "左下腹痛" 时，仅保留跨度最长、语义最完整的实体。
-        同时基于启发式规则拦截明显荒谬的识别结果（如纯数字、无意义字符）。
+        实体嵌套消解算法 (Maximum Length First)。
+        当同一位置识别出多个相互重叠的实体时，保留最长的一个。
 
         Args:
-            entities (list): NER 模型输出的原始实体字典列表。
+            entities (list): 原始实体列表。
 
         Returns:
-            list: 经过降噪去重后的高精度实体列表。
+            list: 消除重叠冲突后的实体列表。
         """
-        filtered_entities = []
-        blacklist = {"母乳", "间径", "cm", "mm", "无", "否", "未"}
+        if not entities:
+            return []
 
-        for e in entities:
-            text = e["text"].strip(" ，。；、：:()（）[]【】")
-            if len(text) < 2 and not re.match(r"[痛痒晕肿]", text):
-                continue
-            if re.fullmatch(
-                r"[a-zA-Z0-9\.\+\-\*\/]+(cm|mm|kg|g|ml|l|bp|bpm|mmhg)?", text.lower()
-            ):
-                continue
-            if text in blacklist or any(b in text for b in blacklist if len(b) > 2):
-                continue
+        # 排序策略：起始位置越前越优先，起始位置相同则长度越长越优先
+        entities = sorted(
+            entities, key=lambda x: (x["start"], -(x["end"] - x["start"]))
+        )
 
-            e["text"] = text
-            filtered_entities.append(e)
-
-        unique_ents = []
-        seen = set()
-        for e in filtered_entities:
-            identifier = f"{e['type']}-{e['start']}-{e['end']}"
-            if identifier not in seen:
-                seen.add(identifier)
-                unique_ents.append(e)
-
-        unique_ents.sort(key=lambda x: x["end"] - x["start"], reverse=True)
-        final_ents = []
-        for i, entA in enumerate(unique_ents):
-            textA = entA["text"]
-            for entB in unique_ents[i + 1 :]:
-                if entB["start"] >= entA["start"] and entB["end"] <= entA["end"]:
-                    textA = textA.replace(entB["text"], "")
-
-            textA = textA.strip('”"’‘，。、 ')
-            if len(textA) >= 2 or re.match(r"[痛痒晕肿]", textA):
-                final_ents.append(
-                    {
-                        "text": textA,
-                        "type": entA["type"],
-                        "score": entA["score"],
-                        "start": entA["start"],
-                        "end": entA["end"],
-                    }
-                )
-
-        result, seen_texts = [], set()
-        for e in final_ents:
-            key = f"{e['type']}-{e['text']}"
-            if key not in seen_texts:
-                seen_texts.add(key)
-                result.append(e)
-
-        return result
+        resolved = []
+        last_end = -1
+        for ent in entities:
+            if ent["start"] >= last_end:
+                resolved.append(ent)
+                last_end = ent["end"]
+            elif ent["end"] > last_end:
+                ent["start"] = last_end
+                if ent["end"] > ent["start"]:
+                    resolved.append(ent)
+                    last_end = ent["end"]
+        return resolved
 
     def detect_entity_polarity(
-        self, entities: list, text: str, window_size: int = 5
+        self, entities: list, text: str, window_size: int = 6
     ) -> list:
         """
         基于滑动窗口与辖域传导的实体极性分析 (Polarity Analysis)。
@@ -216,33 +148,45 @@ class DataProcessor:
         如 "否认高血压、糖尿病、心脏病" 这种由顿号连接的连续否定辖域传导。
 
         Args:
-            entities (list): 降噪后的实体列表，需包含其在文本中的绝对坐标 start。
+            entities (list): 降噪后的实体列表。
             text (str): 实体所在的原始段落文本。
-            window_size (int): 扫描实体前方 N 个字符以探测否定词，默认为 5。
+            window_size (int): 扫描实体前方 N 个字符以探测否定词，默认为 6。
 
         Returns:
-            list: 在每个实体字典中追加了 "polarity" ("阳性" 或 "阴性") 字段的新列表。
+            list: 追加了 "polarity" ("阳性" 或 "阴性") 字段的新列表。
         """
         entities.sort(key=lambda x: x["start"])
 
         for i, ent in enumerate(entities):
             start_idx = ent.get("start", 0)
-
             window_start = max(0, start_idx - window_size)
             prefix_context = text[window_start:start_idx]
 
             ent["polarity"] = "阳性"
 
-            for neg_word in self.negation_words:
-                if neg_word in prefix_context:
+            # 1. 独立否定词检测
+            if any(neg in prefix_context for neg in self.negation_words):
+                ent["polarity"] = "阴性"
+                continue
+
+            # 2. 顿号辖域传导检测
+            check_idx = ent["start"] - 1
+            while check_idx >= 0 and text[check_idx] in ["、", "，", ",", "与", "和"]:
+                is_chained_neg = False
+                prev_ent = next((e for e in entities if e["end"] == check_idx), None)
+
+                if prev_ent and prev_ent.get("polarity") == "阴性":
+                    is_chained_neg = True
+                else:
+                    scan_start = max(0, check_idx - window_size)
+                    if any(
+                        neg in text[scan_start:check_idx] for neg in self.negation_words
+                    ):
+                        is_chained_neg = True
+
+                if is_chained_neg:
                     ent["polarity"] = "阴性"
                     break
-
-            if ent["polarity"] == "阳性" and i > 0:
-                prev_ent = entities[i - 1]
-                if prev_ent.get("polarity") == "阴性":
-                    gap_text = text[prev_ent["end"] : start_idx].strip()
-                    if re.fullmatch(r"[、，,和及与\s]*", gap_text):
-                        ent["polarity"] = "阴性"
+                check_idx -= 1
 
         return entities

@@ -1,7 +1,10 @@
 /*
- * 模块名称：全局样式表 (CSS)
- * 功能描述：定义医疗工作站的前端视觉规范，包含拟物玻璃态设计、实体分类着色系统、
+ * ====================================================================
+ * 模块名称：全局样式表 (Global Stylesheet)
+ * 功能描述：定义医疗工作站的前端视觉规范。
+ * 包含拟物玻璃态设计 (Glassmorphism)、实体分类着色系统、
  * 响应式布局修正以及动态预警动画。
+ * ====================================================================
  */
 
 :root {
@@ -19,7 +22,7 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* ====================================================================
+/* ====================================================================\
  * 核心组件视觉 (Components)
  * ==================================================================== */
 
@@ -29,97 +32,24 @@ body {
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
-.entity-box {
-    display: inline-flex;
-    align-items: center;
-    margin: 0 4px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+.page-header h2 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
 }
-
-.entity-text {
-    padding: 2px 6px;
-    border-right: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.entity-label {
-    padding: 2px 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-/* ====================================================================
- * 实体类型着色系统 (Entity Color Encoding)
- * ==================================================================== */
-
-.type-疾病 {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: #b91c1c;
-    border: 1px solid rgba(248, 113, 113, 0.5);
-}
-
-.type-症状 {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    color: #b45309;
-    border: 1px solid rgba(251, 191, 36, 0.5);
-}
-
-.type-药物 {
-    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-    color: #1d4ed8;
-    border: 1px solid rgba(96, 165, 250, 0.5);
-}
-
-.type-身体部位 {
-    background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
-    color: #7e22ce;
-    border: 1px solid rgba(216, 180, 254, 0.5);
-}
-
-.type-手术_检查 {
-    background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-    color: #0f766e;
-    border: 1px solid rgba(94, 234, 212, 0.5);
-}
-
-.type-科室 {
-    background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-    color: #0f766e;
-    border: 1px solid rgba(94, 234, 212, 0.5);
-}
-
-/* ====================================================================
- * 基础排版与表单 (Typography & Forms)
- * ==================================================================== */
 
 .text-panel {
-    line-height: 2.2;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
     font-size: 1.05rem;
-}
-
-.btn-primary {
-    background-color: var(--primary-color);
-    border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-weight: 500;
-    box-shadow: 0 4px 10px rgba(0, 113, 227, 0.3);
-    transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-    background-color: #005bb5;
-    box-shadow: 0 6px 15px rgba(0, 113, 227, 0.4);
-    transform: translateY(-1px);
+    line-height: 1.8;
 }
 
 .form-control {
+    background-color: #f5f5f7;
     border-radius: 8px;
     border: 1px solid #d2d2d7;
 }
@@ -129,7 +59,7 @@ body {
     box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
 }
 
-/* ====================================================================
+/* ====================================================================\
  * 全局配置中心定制样式 (Settings Console Overrides)
  * ==================================================================== */
 
@@ -153,29 +83,64 @@ body {
     border-color: var(--primary-color);
 }
 
-/* ====================================================================
- * AI 实体药丸标签 (Entity Chips)
+/* ====================================================================\
+ * AI 实体药丸标签 (Entity Chips & Boxes)
  * ==================================================================== */
 .entity-chip {
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid transparent;
 }
 
 .entity-chip:hover {
-    transform: scale(1.05) translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    filter: brightness(0.95);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
 .entity-chip:active {
-    transform: scale(0.95);
+    transform: translateY(0) scale(0.98);
 }
 
-.entity-chip i {
-    font-size: 0.8rem;
-    opacity: 0.7;
+.entity-label {
+    font-size: 0.65rem;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-left: 6px;
+    color: #666;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* 实体分类色彩系统 */
+.type-疾病 {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #ef4444;
+}
+
+.type-症状 {
+    background-color: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #f59e0b;
+}
+
+.type-药物 {
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #22c55e;
+}
+
+.type-身体部位 {
+    background-color: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #3b82f6;
+}
+
+.type-手术_检查 {
+    background-color: #faf5ff;
+    border: 1px solid #e9d5ff;
+    color: #a855f7;
+}
+
+.shadow-inner {
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
 }

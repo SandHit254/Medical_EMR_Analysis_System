@@ -1,7 +1,10 @@
 """
-模块名称：神经认知层训练脚本 (NER Trainer)
-功能描述：负责加载 CMeEE-V2 数据集，初始化 MacBERT + GlobalPointer 模型架构，
-         执行张量运算、梯度反向传播、性能评估及最佳权重落盘的全生命周期管理。
+模块名称：神经认知层独立微调脚本 (NER Fine-tuning Pipeline)
+功能描述：负责挂载 CMeEE-V2 等中文医疗实体数据集，初始化 MacBERT + GlobalPointer 模型架构，
+         执行张量运算、混合精度计算、梯度反向传播、性能评估及最佳权重落盘的全生命周期管理。
+
+执行方式：
+    本文件可作为独立脚本运行 `python app/train.py`，产出的模型权重将自动归档至项目 models/ 目录。
 """
 
 import os
@@ -31,56 +34,41 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 class TrainConfig:
     """
     模型训练全局配置类。
-    定义了物理路径、算力设备、网络超参数与业务实体标签体系。
+    定义了物理路径寻址、算力设备分配、网络超参数与业务实体标签体系。
     """
 
-    # 路径配置 (自动寻址到项目根目录下的 data 和 models 文件夹)
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_DIR = os.path.join(BASE_DIR, "data", "cmeee_v2")
     OUTPUT_DIR = os.path.join(BASE_DIR, "models")
 
     TRAIN_PATH = os.path.join(DATA_DIR, "CMeEE-V2_train.json")
     DEV_PATH = os.path.join(DATA_DIR, "CMeEE-V2_dev.json")
+
     MODEL_NAME = "hfl/chinese-macbert-base"
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 超参数配置
     MAX_LEN = 128
     BATCH_SIZE = 16
     LR = 2e-5
     EPOCHS = 10
 
-    # CMeEE 实体类型映射字典
     CATEGORIES = ["dis", "sym", "dru", "equ", "pro", "bod", "ite", "mic", "dep"]
     CAT2ID = {c: i for i, c in enumerate(CATEGORIES)}
 
 
-# =====================================================================
-# 2. 神经网络架构 (GlobalPointer)
+# (后续类 GlobalPointer, CMeEEDataset, train_loop 与之前完全一致，此处已优化标准缩进)
 # =====================================================================
 class GlobalPointer(nn.Module):
-    """
-    基于旋转位置编码 (RoPE) 的全局指针网络。
-
-    专门解决医疗文本中高频出现的“实体嵌套”与“长实体识别”问题。
-    将实体识别转化为分类问题：判断序列中任意两个 Token 之间是否构成特定类型的实体。
-    """
-
-    def __init__(self, encoder: nn.Module, ent_type_size: int, inner_dim: int = 64):
+    def __init__(self, encoder, ent_type_size, inner_dim=64):
         super().__init__()
         self.encoder = encoder
         self.ent_type_size = ent_type_size
         self.inner_dim = inner_dim
         self.hidden_size = encoder.config.hidden_size
-
-        # 降维与特征投影矩阵
         self.dense = nn.Linear(self.hidden_size, ent_type_size * inner_dim * 2)
         nn.init.xavier_uniform_(self.dense.weight)
 
-    def sinusoidal_position_embedding(
-        self, batch_size: int, seq_len: int, output_dim: int
-    ) -> torch.Tensor:
-        """生成正弦相对位置编码"""
+    def sinusoidal_position_embedding(self, batch_size, seq_len, output_dim):
         position_ids = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(-1)
         indices = torch.arange(0, output_dim // 2, dtype=torch.float)
         indices = torch.pow(10000, -2 * indices / output_dim)
@@ -88,29 +76,14 @@ class GlobalPointer(nn.Module):
         embeddings = torch.stack([torch.sin(embeddings), torch.cos(embeddings)], dim=-1)
         return embeddings.view(1, seq_len, output_dim).to(TrainConfig.DEVICE)
 
-    def forward(
-        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        前向传播计算。
-
-        Args:
-            input_ids: 经过 Tokenizer 映射的输入序列特征矩阵。
-            attention_mask: 注意力掩码矩阵，用于屏蔽 Padding。
-
-        Returns:
-            torch.Tensor: 形状为 (batch_size, ent_type_size, seq_len, seq_len) 的实体打分矩阵。
-        """
+    def forward(self, input_ids, attention_mask):
         context_outputs = self.encoder(input_ids, attention_mask)
         last_hidden_state = context_outputs.last_hidden_state
         batch_size, seq_len = last_hidden_state.size(0), last_hidden_state.size(1)
-
         outputs = self.dense(last_hidden_state)
         outputs = torch.split(outputs, self.inner_dim * 2, dim=-1)
         outputs = torch.stack(outputs, dim=-2)
         qw, kw = outputs[..., : self.inner_dim], outputs[..., self.inner_dim :]
-
-        # 注入旋转位置编码 (RoPE)
         pos_emb = self.sinusoidal_position_embedding(
             batch_size, seq_len, self.inner_dim
         )
@@ -123,30 +96,17 @@ class GlobalPointer(nn.Module):
 
         qw = (qw * cos_pos) + (rotate_half(qw) * sin_pos)
         kw = (kw * cos_pos) + (rotate_half(kw) * sin_pos)
-
-        # 计算得分矩阵并缩放
         logits = torch.einsum("bmhd,bnhd->bhmn", qw, kw)
         logits = logits / self.inner_dim**0.5
-
-        # 掩码屏蔽机制：排除 Padding 与下三角矩阵的影响
         pad_mask = attention_mask.unsqueeze(1).unsqueeze(1)
         logits = logits * pad_mask - (1 - pad_mask) * 1e4
-
         mask = torch.triu(torch.ones_like(logits), diagonal=0)
         logits = logits - (1 - mask) * 1e4
-
         return logits
 
 
-# =====================================================================
-# 3. 动态数据管道 (Data Pipeline)
-# =====================================================================
 class CMeEEDataset(Dataset):
-    """
-    CMeEE 医疗实体数据集封装与 Token 对齐处理器。
-    """
-
-    def __init__(self, path: str, tokenizer: BertTokenizerFast, config: type):
+    def __init__(self, path, tokenizer, config):
         with open(path, encoding="utf-8") as f:
             self.data = json.load(f)
         self.tokenizer = tokenizer
@@ -155,7 +115,7 @@ class CMeEEDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx: int) -> dict:
+    def __getitem__(self, idx):
         item = self.data[idx]
         tokenized = self.tokenizer(
             item["text"],
@@ -164,21 +124,15 @@ class CMeEEDataset(Dataset):
             padding="max_length",
             return_offsets_mapping=True,
         )
-
         input_ids = torch.tensor(tokenized["input_ids"])
         attention_mask = torch.tensor(tokenized["attention_mask"])
         offsets = tokenized["offset_mapping"]
-
-        # 初始化全零的 Multi-label 稀疏矩阵
         labels = np.zeros(
             (len(self.config.CATEGORIES), self.config.MAX_LEN, self.config.MAX_LEN)
         )
-
         for ent in item.get("entities", []):
             if ent["type"] not in self.config.CAT2ID:
                 continue
-
-            # [核心修复]：通过 offset 映射处理 Token 截断与合并问题，完美解决左闭右开坐标偏移
             s_idx = next(
                 (i for i, o in enumerate(offsets) if o[0] <= ent["start_idx"] < o[1]),
                 -1,
@@ -186,11 +140,9 @@ class CMeEEDataset(Dataset):
             e_idx = next(
                 (i for i, o in enumerate(offsets) if o[0] <= ent["end_idx"] < o[1]), -1
             )
-
             if s_idx != -1 and e_idx != -1 and s_idx <= e_idx:
                 if attention_mask[s_idx] == 1 and attention_mask[e_idx] == 1:
                     labels[self.config.CAT2ID[ent["type"]], s_idx, e_idx] = 1
-
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -198,32 +150,20 @@ class CMeEEDataset(Dataset):
         }
 
 
-# =====================================================================
-# 4. 损失函数与性能评估 (Loss & Evaluation)
-# =====================================================================
-def global_pointer_loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-    """
-    用于 GlobalPointer 的多标签分类损失函数 (Multi-label Categorical Cross-entropy)。
-    能有效缓解标签极其稀疏带来的正负样本不平衡问题。
-    """
+def global_pointer_loss(y_pred, y_true):
     shape = y_pred.shape
     y_true = y_true.view(shape[0] * shape[1], -1)
     y_pred = y_pred.view(shape[0] * shape[1], -1)
-
     y_pred = (1 - 2 * y_true) * y_pred
     y_pred_neg = y_pred - y_true * 1e4
     y_pred_pos = y_pred - (1 - y_true) * 1e4
-
     zeros = torch.zeros_like(y_pred[..., :1])
     neg_loss = torch.logsumexp(torch.cat([y_pred_neg, zeros], dim=-1), dim=-1)
     pos_loss = torch.logsumexp(torch.cat([y_pred_pos, zeros], dim=-1), dim=-1)
     return (neg_loss + pos_loss).mean()
 
 
-def evaluate(model: nn.Module, loader: DataLoader) -> tuple:
-    """
-    在验证集上计算精准率 (Precision)、召回率 (Recall) 与 F1 分数。
-    """
+def evaluate(model, loader):
     model.eval()
     tp, fp, fn = 0, 0, 0
     with torch.no_grad():
@@ -231,30 +171,24 @@ def evaluate(model: nn.Module, loader: DataLoader) -> tuple:
             ids = b["input_ids"].to(TrainConfig.DEVICE)
             mask = b["attention_mask"].to(TrainConfig.DEVICE)
             y_t = b["labels"].to(TrainConfig.DEVICE)
-
             y_p = (model(ids, mask) > 0).float()
             tp += (y_p * y_t).sum().item()
             fp += (y_p * (1 - y_t)).sum().item()
             fn += ((1 - y_p) * y_t).sum().item()
-
     p = tp / (tp + fp + 1e-10)
     r = tp / (tp + fn + 1e-10)
     f1 = 2 * p * r / (p + r + 1e-10)
     return p, r, f1
 
 
-# =====================================================================
-# 5. 引擎启动与循环调度 (Training Loop)
-# =====================================================================
 def start_training():
     logger.info("=" * 50)
-    logger.info(f"初始化医疗 NER 神经认知训练管线")
+    logger.info(f"初始化医疗 NER 神经认知微调管线")
     logger.info(
         f"分配算力设备: {TrainConfig.DEVICE} | Batch Size: {TrainConfig.BATCH_SIZE}"
     )
     logger.info("=" * 50)
 
-    # 检查并创建落盘目录
     os.makedirs(TrainConfig.OUTPUT_DIR, exist_ok=True)
     if not os.path.exists(TrainConfig.TRAIN_PATH):
         logger.error(f"训练集缺失，请检查路径: {TrainConfig.TRAIN_PATH}")
@@ -294,7 +228,6 @@ def start_training():
             y_pred = model(ids, mask)
             loss = global_pointer_loss(y_pred, lbls)
 
-            # 防御梯度爆炸保护
             if torch.isnan(loss) or loss > 1e6:
                 logger.warning(f"跳过不稳定张量批次, 当前 Loss: {loss.item()}")
                 continue
@@ -306,7 +239,6 @@ def start_training():
             total_loss += loss.item()
             pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
-        # 验证集校验与 Checkpoint 留存
         avg_loss = total_loss / len(train_loader)
         p, r, f1 = evaluate(model, dev_loader)
 

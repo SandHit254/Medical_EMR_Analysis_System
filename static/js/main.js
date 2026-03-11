@@ -1,11 +1,44 @@
 /**
- * 模块名称：前端状态机与交互流转控制模块
+ * ====================================================================
+ * 模块名称：前端状态机与交互流转控制模块 (Frontend State Machine)
+ * 功能描述：接管 DOM 操作、跨路由 Session 会话保持、
+ * CDSS 动态预警、以及异步微服务接口 (AJAX) 的流转通信。
+ * ====================================================================
  */
 
-function showLoading(text="神经引擎介入中...") { document.getElementById('loading-text').innerText = text; document.getElementById('loading-overlay').style.display = 'flex'; }
-function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
-function escapeHtml(text) { if (!text) return ""; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+let activeInputField = null; // 【核心修复】：变量提升，记录当前选中的输入框，用于实体交互注入
 
+/**
+ * 唤起全局 Loading 遮罩层
+ * @param {string} text - 提示文案
+ */
+function showLoading(text="神经引擎介入中...") { 
+    document.getElementById('loading-text').innerText = text; 
+    document.getElementById('loading-overlay').style.display = 'flex'; 
+}
+
+/**
+ * 关闭全局 Loading 遮罩层
+ */
+function hideLoading() { 
+    document.getElementById('loading-overlay').style.display = 'none'; 
+}
+
+/**
+ * XSS 防御：HTML 字符转义
+ * @param {string} text - 原始字符串
+ * @returns {string} 转义后的安全字符串
+ */
+function escapeHtml(text) { 
+    if (!text) return ""; 
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); 
+}
+
+/**
+ * 唤起全局 Toast 系统提示
+ * @param {string} msg - 提示信息
+ * @param {boolean} isError - 是否为错误红色警示
+ */
 function showSystemToast(msg, isError=false) {
     const toastEl = document.getElementById('systemToast');
     const toastBody = document.getElementById('toast-message');
@@ -122,7 +155,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 e.preventDefault(); 
                 openEmpiGateway();
             } else {
-                showLoading('神经链路分析中，请稍候...');
+                showLoading('数据流转解析中，请稍候...');
             }
         });
     });
@@ -224,7 +257,6 @@ function setPatientContext(pid, info, skipRedirect = false) {
         if(idleDesc) { idleDesc.innerHTML = `已锁定患者 <strong>${pid}</strong>，请在左侧开启分析管线。`; idleDesc.className = "text-success opacity-75 mx-auto"; }
     }
 
-    // 【核心修复】：随时展示隐藏在 DOM 中的“结束接诊”容器
     const resetContainer = document.getElementById('reset-workspace-container');
     if (resetContainer) resetContainer.style.display = 'block';
     
@@ -239,7 +271,6 @@ function setPatientContext(pid, info, skipRedirect = false) {
 /* ====================================================================
  * 文本焦点捕获器
  * ==================================================================== */
-let activeInputField = null;
 document.addEventListener('focusin', function(e) {
     if (e.target && e.target.classList.contains('emr-input-target')) {
         if (activeInputField) activeInputField.classList.remove('active-input-field');
@@ -438,6 +469,7 @@ window.saveOcrText = function(triggerNerReload) {
                 window.SYSTEM_CONTEXT.entitiesData = window.SYSTEM_CONTEXT.entitiesData.filter(e => e.section !== section && e['所属段落'] !== section);
                 window.SYSTEM_CONTEXT.entitiesData = window.SYSTEM_CONTEXT.entitiesData.concat(data.entities);
                 renderEntityHighlights(); triggerDynamicCDSS();
+                
                 showSystemToast('神经推理重载成功！');
             } else { alert("神经推理失败: " + data.message); }
         }).catch(err => { hideLoading(); alert("网络异常"); });
@@ -450,14 +482,14 @@ window.openEntityEditor = function(text, start, section, type, polarity) {
     new bootstrap.Modal(document.getElementById('editEntityModal')).show();
 };
 window.updateEntity = function() {
-    const text = document.getElementById('edit-ent-text').value; const start = parseInt(document.getElementById('edit-ent-start').value); const section = document.getElementById('edit-ent-section').value;
+    const text = document.getElementById('edit-ent-text').value; const section = document.getElementById('edit-ent-section').value;
     const ent = window.SYSTEM_CONTEXT.entitiesData.find(e => e.text === text && (e.section === section || e['所属段落'] === section));
     if (ent) { ent.type = document.getElementById('edit-ent-type').value; ent.polarity = document.getElementById('edit-ent-polarity').value; renderEntityHighlights(); triggerDynamicCDSS(); }
     bootstrap.Modal.getInstance(document.getElementById('editEntityModal')).hide();
     showSystemToast('实体属性更新成功');
 };
 window.deleteEntity = function() {
-    const text = document.getElementById('edit-ent-text').value; const start = parseInt(document.getElementById('edit-ent-start').value); const section = document.getElementById('edit-ent-section').value;
+    const text = document.getElementById('edit-ent-text').value; const section = document.getElementById('edit-ent-section').value;
     const index = window.SYSTEM_CONTEXT.entitiesData.findIndex(e => e.text === text && (e.section === section || e['所属段落'] === section));
     if (index > -1) { window.SYSTEM_CONTEXT.entitiesData.splice(index, 1); renderEntityHighlights(); triggerDynamicCDSS(); }
     bootstrap.Modal.getInstance(document.getElementById('editEntityModal')).hide();
@@ -583,7 +615,7 @@ function executeArchiveProtocol() {
 }
 
 /* ====================================================================
- * 双向同步配置中心与出厂设置引擎
+ * 双向同步配置中心
  * ==================================================================== */
 let currentGlobalSettings = {};
 let isDevModeActive = false;
