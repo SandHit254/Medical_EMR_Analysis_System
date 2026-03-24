@@ -43,7 +43,7 @@ records/
 *.swp
 *.log
 
-# 忽略根目录下的零散测试图片
+# 忽略根目录下的零散内容
 test.jpg
 test2.jpg
 uploads_temp
