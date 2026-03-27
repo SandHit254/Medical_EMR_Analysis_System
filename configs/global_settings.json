@@ -1,11 +1,11 @@
 {
+    "system": {
+        "device": "cuda"
+    },
     "ocr": {
         "use_angle_cls": true
     },
     "storage": {
         "root_path": "output/patient_records"
-    },
-    "system": {
-        "device": "cuda"
     }
 }

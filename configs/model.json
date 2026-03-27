@@ -1,31 +1,14 @@
 {
     "ner": {
-        "bert_pretrain_path": "hfl/chinese-macbert-base",
-        "categories": [
-            "dis",
-            "sym",
-            "dru",
-            "equ",
-            "pro",
-            "bod",
-            "ite",
-            "mic",
-            "dep"
-        ],
         "checkpoint_path": "models/ner_model.pt",
-        "id2label": {
-            "bod": "身体部位",
-            "dep": "科室",
-            "dis": "疾病",
-            "dru": "药物",
-            "equ": "设备",
-            "ite": "指标",
-            "mic": "微生物",
-            "pro": "手术/检查",
-            "sym": "症状"
-        },
-        "inference_threshold": 0,
+        "bert_pretrain_path": "hfl/chinese-macbert-base",
+        "max_len": 128,
+        "inference_threshold": 0.0,
         "inner_dim": 64,
-        "max_len": 128
+        "categories": ["dis", "sym", "dru", "equ", "pro", "bod", "ite", "mic", "dep"],
+        "id2label": {
+            "dis": "疾病", "sym": "症状", "dru": "药物", "equ": "设备", 
+            "pro": "手术/检查", "bod": "身体部位", "ite": "指标", "mic": "微生物", "dep": "科室"
+        }
     }
 }
