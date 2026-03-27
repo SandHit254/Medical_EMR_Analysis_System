@@ -12,7 +12,7 @@
             "mic",
             "dep"
         ],
-        "checkpoint_path": "models/ner_model2.pt",
+        "checkpoint_path": "models/ner_model.pt",
         "id2label": {
             "bod": "身体部位",
             "dep": "科室",

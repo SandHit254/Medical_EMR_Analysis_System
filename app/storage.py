@@ -130,7 +130,6 @@ class StorageEngine:
                                 }
                             )
                     except json.JSONDecodeError:
-                        # 【核心修复】：防止单一文件损坏导致的检索雪崩崩溃
                         logger.warning(f"搜索器隔离了损坏的 JSON 文件: {target_file}")
                         continue
         return results
@@ -157,7 +156,7 @@ class StorageEngine:
         return result
 
     def get_patient_history(self, patient_id: str) -> dict:
-        """跨时空档案继承：获取某个患者最新一次的历史病历信息"""
+        """获取某个患者最新一次的历史病历信息"""
         patient_folder = (
             patient_id if patient_id.startswith("PID_") else f"PID_{patient_id}"
         )
@@ -213,7 +212,6 @@ class StorageEngine:
         try:
             os.makedirs(visit_dir, exist_ok=True)
 
-            # 兼容纯文本直通模式，若无图径则跳过物理复制
             if image_path and os.path.exists(image_path):
                 shutil.copy(image_path, os.path.join(visit_dir, "01_source.jpg"))
 
@@ -251,12 +249,20 @@ class StorageEngine:
             rules_cfg = ConfigManager().get_section("rules")
             cdss_rules = rules_cfg.get("cdss_rules", [])
             cdss_warnings = []
+
             emr_full_text = json.dumps(sections, ensure_ascii=False)
             extracted_entity_texts = [e["text"] for e in all_ents]
 
+            # 物理隔离校验域。致敏原/基础病必须且只能在过敏史/既往史中搜索
+            high_risk_history = str(sections.get("过敏史", "")) + str(
+                sections.get("既往史", "")
+            )
+
             for rule in cdss_rules:
-                if rule["allergy"] in emr_full_text:
+                # 仅在历史高危字段中检测过敏原/基础病
+                if rule["allergy"] in high_risk_history:
                     for drug in rule["drugs"]:
+                        # 处方药则在全局或抽取的实体中检测
                         if drug in emr_full_text or any(
                             drug in ent_text for ent_text in extracted_entity_texts
                         ):
