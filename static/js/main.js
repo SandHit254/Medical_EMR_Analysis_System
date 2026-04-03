@@ -243,8 +243,15 @@ function setPatientContext(pid, info, skipRedirect = false) {
         document.getElementById('dyn-banner-gender').innerText = info.gender;
         document.getElementById('dyn-banner-age').innerText = info.age;
         document.getElementById('dyn-banner-pid').innerText = pid;
+        
+        const genderIcon = document.getElementById('dyn-banner-gender-icon');
+        if (genderIcon) {
+            genderIcon.className = info.gender === '男' ? "bi bi-gender-male text-primary" : 
+                                   info.gender === '女' ? "bi bi-gender-female text-danger" : 
+                                   "bi bi-gender-ambiguous text-secondary";
+        }
     }
-    
+
     const idleStateView = document.getElementById('idle-state-view');
     if (idleStateView) {
         idleStateView.className = "glass-card flex-grow-1 d-flex flex-column align-items-center justify-content-center p-5 text-center shadow-sm border rounded bg-success bg-opacity-10";

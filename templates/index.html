@@ -151,7 +151,10 @@
           <div>
             <span class="badge bg-primary me-3 px-3 py-2 fs-6 shadow-sm"><i class="bi bi-person-fill"></i> 正在处理当前患者</span>
             <strong class="fs-4 me-4 text-dark">{{ record.get('结构化病历', {}).get('姓名', '未知') }}</strong>
-            <span class="text-muted fw-bold me-3"><i class="bi bi-gender-ambiguous text-primary"></i> {{ record.get('结构化病历', {}).get('性别', '-') }}</span>
+            <span class="text-muted fw-bold me-3">
+              <i class="bi {% if record.get('结构化病历', {}).get('性别') == '男' %}bi-gender-male text-primary{% elif record.get('结构化病历', {}).get('性别') == '女' %}bi-gender-female text-danger{% else %}bi-gender-ambiguous text-secondary{% endif %}"></i> 
+              {{ record.get('结构化病历', {}).get('性别', '-') }}
+            </span>
             <span class="text-muted fw-bold me-3"><i class="bi bi-calendar-event text-primary"></i> {{ record.get('结构化病历', {}).get('年龄', '-') }}</span>
           </div>
           <div class="text-muted fw-bold bg-light px-3 py-1 rounded border"><i class="bi bi-upc-scan"></i> {{ record.get('患者ID') }}</div>
@@ -161,7 +164,7 @@
           <div>
             <span class="badge bg-warning text-dark me-3 px-3 py-2 fs-6 shadow-sm"><i class="bi bi-person-fill"></i> 待处理患者</span>
             <strong id="dyn-banner-name" class="fs-4 me-4 text-dark"></strong>
-            <span class="text-muted fw-bold me-3"><i class="bi bi-gender-ambiguous text-primary"></i> <span id="dyn-banner-gender"></span></span>
+            <span class="text-muted fw-bold me-3"><i id="dyn-banner-gender-icon" class="bi bi-gender-ambiguous text-secondary"></i> <span id="dyn-banner-gender"></span></span>
             <span class="text-muted fw-bold me-3"><i class="bi bi-calendar-event text-primary"></i> <span id="dyn-banner-age"></span></span>
           </div>
           <div class="text-muted fw-bold bg-light px-3 py-1 rounded border"><i class="bi bi-upc-scan"></i> <span id="dyn-banner-pid"></span></div>
