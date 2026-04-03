@@ -14,9 +14,10 @@
 
 **(Medical EMR Intelligence & Human-in-the-Loop System)**
 
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg?logo=pytorch)](https://pytorch.org/)
-[![Flask](https://img.shields.io/badge/Flask-2.3%2B-black.svg?logo=flask)](https://flask.palletsprojects.com/)
+[![Python 3.10](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/)
+[![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg?logo=pytorch)](https://pytorch.org/)
+[![Flask 3.0+](https://img.shields.io/badge/Flask-3.0%2B-black.svg?logo=flask)](https://flask.palletsprojects.com/)
+[![Transformers 4.46.0](https://img.shields.io/badge/Transformers-4.46.0-yellow.svg)](https://huggingface.co/docs/transformers/index)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 本项目是一个基于深度学习（**MacBERT + RoPE GlobalPointer**）与**动态规则引擎**双驱架构的现代化医疗 NLP 工作站。专为非结构化临床文本（手写/打印病历、PDF 报告、电子文档）设计，探索了 AI 算法在垂直行业落地的工程化范式。
@@ -336,16 +337,16 @@ sequenceDiagram
 
 ### 6.1 环境准备 (Environment Setup)
 
-本系统基于 **Python 3.9+** 构建，为避免环境冲突，强烈建议使用 Anaconda / Miniconda 创建独立的虚拟环境。
+本系统基于 **Python 3.10** 构建，为避免环境冲突，强烈建议使用 Anaconda / Miniconda 创建独立的虚拟环境。
 
 ```bash
 # 1. 克隆或下载本项目至本地
-git clone [https://github.com/your-username/Medical_EMR_Intelligence.git](https://github.com/your-username/Medical_EMR_Intelligence.git)
+git clone https://github.com/SandHit254/Medical_EMR_Analysis_System.git
 cd Medical_EMR_Intelligence
 
 # 2. 创建虚拟环境并激活
-conda create -n emr_ai python=3.10
-conda activate emr_ai
+conda create -n cdss_env python=3.10 -y
+conda activate cdss_env
 
 # 3. 安装核心运算与 Web 宿主依赖
 pip install -r requirement.txt
