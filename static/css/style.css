@@ -18,7 +18,9 @@
 body {
     background-color: var(--bg-color);
     color: var(--text-main);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
@@ -32,7 +34,9 @@ body {
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 16px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.05),
+        0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
 .page-header h2 {
