@@ -51,3 +51,7 @@ ToDoList.md
 1.txt
 paper
 paper/*
+out/tmp/tmp.png
+.gitignore
+tmp.puml
+docs/ref
